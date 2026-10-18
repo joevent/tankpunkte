@@ -1,0 +1,671 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1e252c">
+<meta name="robots" content="noindex,nofollow">
+<title>Tankpunkt-Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+/* Layout: anthrazitfarbene Kopfzeile mit roter Kennlinie (Livery), Filter, Karte + Liste nächster Tankpunkte; Katalog als zweiter Reiter; Sperrbildschirm davor */
+:root{
+  --bg:#f1f2f4; --surface:#ffffff; --surface-2:#f5f6f8; --fg:#1d2329; --muted:#5b6571; --line:#dce0e5;
+  --red:#d3121f; --red-fg:#ffffff; --red-soft:#fbe4e6;
+  --head:#1e252c; --head-fg:#f3f5f7; --head-muted:#9aa5b1; --head-line:#323c46;
+  --night:#2b4a8e; --night-soft:#e3e9f6; --day:#a46400; --day-soft:#f7ecd8; --ok:#1c7a44; --warn:#b4231a; --me:#0b7fc0;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --r:6px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1115; --surface:#151a20; --surface-2:#1b2229; --fg:#e3e7eb; --muted:#8c97a3; --line:#28313a;
+  --red:#ff3d4b; --red-fg:#1a0204; --red-soft:#3a1418;
+  --head:#090c0f; --head-fg:#eef1f4; --head-muted:#85909c; --head-line:#222a32;
+  --night:#90a9ff; --night-soft:#1b2546; --day:#e9b250; --day-soft:#33260e; --ok:#4cc27f; --warn:#ff7a6e; --me:#3bb4ff;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1115; --surface:#151a20; --surface-2:#1b2229; --fg:#e3e7eb; --muted:#8c97a3; --line:#28313a;
+  --red:#ff3d4b; --red-fg:#1a0204; --red-soft:#3a1418;
+  --head:#090c0f; --head-fg:#eef1f4; --head-muted:#85909c; --head-line:#222a32;
+  --night:#90a9ff; --night-soft:#1b2546; --day:#e9b250; --day-soft:#33260e; --ok:#4cc27f; --warn:#ff7a6e; --me:#3bb4ff;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--f-body);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+.app{display:flex;flex-direction:column;min-height:100%}
+header.top{background:var(--head);color:var(--head-fg);padding-top:env(safe-area-inset-top,0px);border-bottom:4px solid var(--red)}
+.top-row{display:flex;align-items:center;gap:10px 12px;padding-block:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;min-width:0}
+.mark{width:30px;height:30px;background:var(--red);display:grid;place-items:center;border-radius:4px;flex:none}
+.mark svg{width:18px;height:18px}
+.brand-txt{display:flex;flex-direction:column;line-height:1.05}
+.brand-txt b{font-family:var(--f-display);font-weight:700;font-size:21px;letter-spacing:.02em;text-transform:uppercase}
+.brand-txt span{font-size:11px;color:var(--head-muted);letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+.sun{display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--head-line);border-radius:4px;font-size:13px;white-space:nowrap;color:var(--head-fg)}
+.sun i{width:9px;height:9px;border-radius:50%;background:#f0b73e;display:inline-block}
+.sun.is-night i{background:#8ea8ff}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:8px 12px;cursor:pointer;font-weight:600;white-space:nowrap;text-decoration:none;color:var(--fg)}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--red);border-color:var(--red);color:var(--red-fg)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.small{padding:5px 9px;font-size:13px}
+.btn.danger{color:var(--warn)}
+.top .btn{background:transparent;border-color:var(--head-line);color:var(--head-fg)}
+.top .btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+
+.filters{display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center;padding-block:4px 10px}
+.lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--head-muted);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--head-line);border-radius:var(--r);overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--head-fg);padding:6px 14px;cursor:pointer;font-weight:600;border-right:1px solid var(--head-line);font-family:var(--f-display);font-size:16px;letter-spacing:.03em;text-transform:uppercase}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--head-fg);color:var(--head)}
+.tabs{display:flex;gap:2px}
+.tabs button{border:0;background:none;padding:9px 14px 8px;cursor:pointer;font-weight:600;color:var(--head-muted);border-bottom:3px solid transparent;margin-bottom:-4px;font-family:var(--f-display);font-size:16px;letter-spacing:.04em;text-transform:uppercase}
+.tabs button[aria-selected="true"]{color:var(--head-fg);border-bottom-color:var(--head-fg)}
+
+.banner{border-bottom:1px solid var(--line);font-size:14px;padding-block:8px;display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap}
+.banner.info{background:var(--day-soft)}
+.banner.alert{background:var(--red-soft)}
+.banner b{font-weight:600}
+
+main{flex:1;display:flex;flex-direction:column;min-height:0}
+.view{flex:1;min-height:0}
+#view-karte{display:grid;grid-template-columns:1fr;grid-template-rows:minmax(300px,50vh) auto}
+.mapbox{position:relative;min-height:300px;border-bottom:1px solid var(--line)}
+#map{position:absolute;inset:0;background:var(--surface-2)}
+.legend{position:absolute;left:10px;bottom:10px;z-index:500;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:5px 9px;font-size:12px;display:flex;gap:10px;align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.maptools{position:absolute;right:10px;top:10px;z-index:500;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.maptools .btn{box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.maptools .btn[aria-pressed="true"]{background:var(--head);color:var(--head-fg);border-color:var(--head)}
+.placing-hint{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:600;background:var(--red);color:#fff;border-radius:var(--r);padding:6px 12px;font-weight:600;font-size:14px;white-space:nowrap}
+.side{overflow:auto;padding-block:14px 24px;display:flex;flex-direction:column;gap:14px;min-width:0}
+@media (min-width:920px){
+  body{overflow:hidden}
+  .app{height:100%}
+  #view-karte{grid-template-columns:minmax(0,1fr) 400px;grid-template-rows:1fr}
+  .mapbox{border-bottom:0;border-right:1px solid var(--line)}
+  #view-katalog{overflow:auto}
+}
+.leaflet-container{font:inherit;background:var(--surface-2)}
+:root[data-theme="dark"] .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.92) saturate(.55)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.92) saturate(.55)}}
+
+.pin{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:600 12px/1 var(--f-mono);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.pin.n{background:#2b4a8e}.pin.d{background:#a46400}
+.pin.sel{background:#d3121f;transform:scale(1.2)}
+.dot-n,.dot-d{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.dot-n{background:#2b4a8e}.dot-d{background:#a46400}
+.me{width:18px;height:18px;border-radius:50%;background:var(--me);border:3px solid #fff;box-shadow:0 0 0 6px color-mix(in srgb,var(--me) 30%,transparent)}
+
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.next{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--red);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px}
+.next.plain{border-top-color:var(--line)}
+.next h2{margin:0;font-family:var(--f-display);font-size:26px;font-weight:700;line-height:1.05;text-wrap:balance}
+.nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.nav div{background:var(--surface-2);padding:8px 10px}
+.nav small{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.nav strong{font:500 21px/1.2 var(--f-mono);font-variant-numeric:tabular-nums}
+.badges{display:flex;gap:6px;flex-wrap:wrap}
+.b{font-size:12px;font-weight:600;padding:2px 8px;border-radius:3px;white-space:nowrap;letter-spacing:.02em}
+.b.n{background:var(--night-soft);color:var(--night)}
+.b.d{background:var(--day-soft);color:var(--day)}
+.b.ex{border:1px dashed var(--line);color:var(--muted)}
+.hintbox{background:var(--surface-2);border-left:3px solid var(--head);border-radius:3px;padding:8px 10px;font-size:14px}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap}
+.coord{font-family:var(--f-mono);font-size:13px}
+
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:10px 12px;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;cursor:pointer;width:100%}
+.item:last-child{border-bottom:0}
+.item:hover{background:var(--surface-2)}
+.item[aria-current="true"]{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--red)}
+.item .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.item .dist{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+.item .sub{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+#view-katalog{padding-block:16px 32px}
+.cat-head{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.cat-head input{flex:1 1 220px;min-width:0;padding:8px 11px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:14px}
+th,td{padding:9px 11px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--surface-2)}
+tr:last-child td{border-bottom:0}
+td .nm{font-weight:600}
+.empty{padding:18px;text-align:center;color:var(--muted)}
+.hint{font-size:13px;color:var(--muted);margin-top:12px;max-width:72ch}
+
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg);padding:0;width:min(640px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
+dialog::backdrop{background:rgba(5,8,12,.6)}
+.dlg{display:flex;flex-direction:column;max-height:calc(100dvh - 26px)}
+.dlg header{padding:12px 18px;display:flex;align-items:center;gap:10px;background:var(--head);color:var(--head-fg);border-bottom:3px solid var(--red)}
+.dlg header h3{margin:0;font-family:var(--f-display);font-size:21px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-right:auto}
+.dlg header .btn{background:transparent;color:var(--head-fg);border-color:var(--head-line)}
+.dlg .body{padding:16px 18px;overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+.dlg footer{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.full{grid-column:1/-1}
+.f label,.f .flbl{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em}
+.f input,.f select,.f textarea{padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);width:100%}
+.f textarea{min-height:64px;resize:vertical}
+.f small{font-size:13px;color:var(--muted)}
+.checks{display:flex;gap:6px 16px;flex-wrap:wrap}
+.checks label{display:inline-flex;gap:6px;align-items:center;font-size:14px;font-weight:500;color:var(--fg);letter-spacing:0}
+.sect{grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;margin-top:2px}
+@media (max-width:520px){.dlg .body{grid-template-columns:1fr}}
+
+/* Sperrbildschirm */
+.lock{position:fixed;inset:0;z-index:3000;background:var(--head);color:var(--head-fg);display:flex;align-items:center;justify-content:center;overflow:auto;
+  padding:max(24px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.lock::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:var(--red)}
+.lock-card{width:min(400px,100%);display:flex;flex-direction:column;gap:14px}
+.lock-card h1{margin:0;font-family:var(--f-display);font-size:34px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;line-height:1}
+.lock-card p{margin:0;color:var(--head-muted)}
+.lock-card input[type=password]{width:100%;padding:12px 13px;border-radius:var(--r);border:1px solid var(--head-line);background:#11171c;color:#eef1f4;font-size:17px}
+.lock-card label.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--head-fg)}
+.lock-card .btn.primary{padding:12px;font-size:17px;font-family:var(--f-display);text-transform:uppercase;letter-spacing:.05em;color:#fff}
+.lock-err{color:#ff8a8f;font-weight:600;min-height:1.4em}
+.lock-foot{font-size:12px;color:var(--head-muted)}
+
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--head);color:var(--head-fg);border-left:4px solid var(--red);padding:9px 14px;border-radius:var(--r);font-weight:500;z-index:4000;max-width:calc(100vw - 32px)}
+@media (prefers-reduced-motion:no-preference){.pin{transition:transform .15s}}
+</style>
+</head>
+<body>
+<div class="lock" id="lock">
+  <form class="lock-card" id="lockForm" autocomplete="off">
+    <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3 4 5 6.6 5 9.5A5 5 0 0 1 7 12.5C7 9.6 9 7 12 3z"/></svg></div></div>
+    <h1 id="lockTitle">Tankpunkt-Finder</h1>
+    <p id="lockText">Die Tankpunktliste ist verschlüsselt. Bitte Passwort eingeben.</p>
+    <input type="password" id="lockPass" placeholder="Passwort" aria-label="Passwort" autocomplete="current-password">
+    <input type="password" id="lockPass2" placeholder="Passwort wiederholen" aria-label="Passwort wiederholen" hidden autocomplete="new-password">
+    <label class="chk"><input type="checkbox" id="lockRemember" checked> Auf diesem Gerät entsperrt bleiben</label>
+    <div class="lock-err" id="lockErr" role="alert"></div>
+    <button class="btn primary" type="submit" id="lockBtn">Entsperren</button>
+    <div class="lock-foot" id="lockFoot">Verschlüsselung AES-256 · Passwort wird nicht übertragen</div>
+  </form>
+</div>
+
+<div class="app">
+  <header class="top">
+    <div class="top-row wrap">
+      <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3 4 5 6.6 5 9.5A5 5 0 0 1 7 12.5C7 9.6 9 7 12 3z"/></svg></div>
+        <div class="brand-txt"><b>Tankpunkt-Finder</b><span>Luftrettung · Jet A-1</span></div></div>
+      <div class="sun" id="sun" title="Nacht nach EASA: Sonne mehr als 6° unter dem Horizont (Ende der bürgerlichen Dämmerung)"><i></i><span id="sunTxt">–</span></div>
+      <button class="btn primary" id="btnLocate" type="button">◎ Standort</button>
+      <button class="btn" id="btnSettings" type="button" aria-label="Einstellungen">⚙</button>
+    </div>
+    <div class="filters wrap">
+      <span class="lbl">Tankung</span>
+      <div class="seg" id="segTime">
+        <button type="button" data-v="tag">Tag</button>
+        <button type="button" data-v="nacht">Nacht</button>
+        <button type="button" data-v="alle">Alle</button>
+      </div>
+    </div>
+    <nav class="tabs wrap" role="tablist">
+      <button type="button" role="tab" id="tab-karte" aria-selected="true">Karte</button>
+      <button type="button" role="tab" id="tab-katalog" aria-selected="false">Katalog</button>
+    </nav>
+  </header>
+  <div id="banners"></div>
+
+  <main>
+    <section class="view" id="view-karte">
+      <div class="mapbox">
+        <div id="map" aria-label="Karte"></div>
+        <div class="maptools"><button class="btn small" id="btnAero" type="button" aria-pressed="false" hidden>Lufträume</button></div>
+        <div class="legend"><span><i class="dot-n"></i>Nacht</span><span><i class="dot-d"></i>nur Tag</span></div>
+        <div class="placing-hint" id="placingHint" hidden>Auf die Karte tippen, um die Position zu setzen</div>
+      </div>
+      <aside class="side wrap" id="side"></aside>
+    </section>
+
+    <section class="view wrap" id="view-katalog" hidden>
+      <div class="cat-head">
+        <input id="q" type="search" placeholder="Suchen: Name, ICAO, Ort, Hinweis …" aria-label="Katalog durchsuchen">
+        <span class="edit-only row-actions">
+          <button class="btn primary" id="btnNew" type="button">+ Neu</button>
+          <label class="btn" for="fileImport">Import CSV/JSON</label>
+          <button class="btn primary" id="btnPublish" type="button">Veröffentlichen</button>
+          <button class="btn" id="btnExportEnc" type="button">Verschlüsselt exportieren</button>
+          <button class="btn" id="btnExportCsv" type="button">CSV</button>
+          <button class="btn" id="btnTemplate" type="button">CSV-Vorlage</button>
+        </span>
+        <input id="fileImport" type="file" accept=".csv,.json,.txt,text/csv,application/json" hidden>
+      </div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Tankpunkt</th><th>Verfügbar</th><th>Hinweis</th><th>Koordinaten</th><th>Zeiten / Kontakt</th><th class="edit-only"></th></tr></thead>
+        <tbody id="catBody"></tbody>
+      </table></div>
+      <p class="hint" id="catHint"></p>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlgEdit"><form class="dlg" id="formEdit" method="dialog">
+  <header><h3 id="editTitle">Tankpunkt</h3><button class="btn" type="button" data-close aria-label="Schließen">✕</button></header>
+  <div class="body">
+    <div class="f full"><label for="e_name">Name *</label><input id="e_name" required placeholder="z. B. Flugplatz Musterstadt"></div>
+    <div class="f"><label for="e_icao">ICAO / Kennung</label><input id="e_icao" placeholder="EDxx"></div>
+    <div class="f"><label for="e_kind">Art</label><select id="e_kind"></select></div>
+    <div class="f"><label for="e_lat">Breite (Lat) *</label><input id="e_lat" inputmode="decimal" required placeholder="51.5181"></div>
+    <div class="f"><label for="e_lon">Länge (Lon) *</label><input id="e_lon" inputmode="decimal" required placeholder="7.6122"></div>
+    <div class="f full"><button class="btn small" type="button" id="e_usepos">Aktuellen Standort eintragen</button></div>
+    <div class="f full"><label for="e_address">Adresse / Lage</label><input id="e_address"></div>
+    <div class="f"><label for="e_fuel">Kraftstoff</label><input id="e_fuel" placeholder="Jet A-1"></div>
+    <div class="f"><span class="flbl">Verfügbar</span><div class="checks"><label><input type="checkbox" id="e_day"> Tag</label><label><input type="checkbox" id="e_night"> Nacht</label></div></div>
+    <div class="f full"><label for="e_hours">Zeiten / Einschränkungen</label><input id="e_hours" placeholder="z. B. H24, Personal Mo–Fr 08–17"></div>
+    <div class="f full"><label for="e_note">Hinweis / Anweisung vor Ort</label><textarea id="e_note" placeholder="Ablauf an der Säule, Anflug, Zufahrt …"></textarea></div>
+    <div class="f"><label for="e_phone">Telefon / Kontakt</label><input id="e_phone"></div>
+    <div class="f"><label for="e_updated">Zuletzt geprüft</label><input id="e_updated" type="date"></div>
+    <div class="f full"><label for="e_notes">Notizen</label><textarea id="e_notes"></textarea></div>
+  </div>
+  <footer><button class="btn" type="button" data-close>Abbrechen</button><button class="btn primary" type="submit">Speichern</button></footer>
+</form></dialog>
+
+<dialog id="dlgSettings"><form class="dlg" id="formSettings" method="dialog">
+  <header><h3>Einstellungen</h3><button class="btn" type="button" data-close aria-label="Schließen">✕</button></header>
+  <div class="body">
+    <div class="f full"><label for="s_theme">Darstellung</label>
+      <select id="s_theme"><option value="">Wie System</option><option value="dark">Dunkel (Nachtflug)</option><option value="light">Hell</option></select></div>
+    <div class="f full"><span class="flbl">Bearbeitung</span><div class="checks"><label><input type="checkbox" id="s_edit"> Bearbeitungsmodus auf diesem Gerät</label></div>
+      <small>Zeigt Neu, Bearbeiten, Import und Export. Für die Crew bleibt die App sonst eine reine Ansicht.</small></div>
+    <div class="f full edit-only"><label for="s_aero">openAIP-Schlüssel für Luftraum-Overlay</label><input id="s_aero" autocomplete="off" placeholder="leer = kein Overlay">
+      <small>Kostenlos bei openaip.net. Wird verschlüsselt mit der Liste verteilt.</small></div>
+    <div class="sect edit-only f full"><span class="flbl">GitHub-Verbindung (nur Bearbeiter)</span>
+      <div class="row-actions"><input id="s_repo" placeholder="benutzer/repository" autocomplete="off" style="flex:1 1 180px"><input id="s_token" type="password" placeholder="Zugriffstoken (github_pat_…)" autocomplete="off" style="flex:1 1 220px"></div>
+      <small>Fein-granularer Token, nur für dieses eine Repository, Berechtigung „Contents: Read and write“. Bleibt verschlüsselt auf diesem Gerät und wird nie mit der Liste verteilt.</small></div>
+    <div class="sect edit-only f full"><span class="flbl">Passwort ändern</span>
+      <div class="row-actions"><input type="password" id="s_np1" placeholder="Neues Passwort" autocomplete="new-password" style="flex:1 1 160px"><input type="password" id="s_np2" placeholder="Wiederholen" autocomplete="new-password" style="flex:1 1 160px"><button class="btn small" type="button" id="s_chpass">Ändern</button></div>
+      <small>Danach neu verschlüsselt exportieren und hochladen. Alle brauchen dann das neue Passwort.</small></div>
+    <div class="sect f full"><span class="flbl">Daten</span><div class="row-actions">
+      <button class="btn small" type="button" id="s_reload">Zentrale Liste neu laden</button>
+      <button class="btn small" type="button" id="s_lock">Sperren</button>
+      <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
+      <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small></div>
+  </div>
+  <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
+</form></dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const KINDS=["Flugplatz","Klinik-Landeplatz","Tanklager","Straßentankstelle","Sonstiges"];
+const CENTRAL="stations.enc.json";
+const K_LOCAL="tp.local.v2",K_KEY="tp.key.v2",K_SET="tp.settings.v2";
+const ITER=210000;
+
+const SAMPLES=[
+ {name:"Beispiel A – Raum Dortmund",kind:"Flugplatz",lat:51.52,lon:7.60,day:true,night:true,note:"Beispiel: Säule 3 links vom Hangar.",hours:"H24"},
+ {name:"Beispiel B – Raum Köln",kind:"Flugplatz",lat:50.87,lon:7.12,day:true,night:false,note:"Beispiel: nur mit Personal.",hours:"Personal 07–21 LT"},
+ {name:"Beispiel C – Westerwald",kind:"Tanklager",lat:50.62,lon:7.85,day:true,night:true,note:"Beispiel: Zufahrt über Tor Nord.",hours:"H24"},
+ {name:"Beispiel D – Raum Hannover",kind:"Klinik-Landeplatz",lat:52.37,lon:9.80,day:true,night:true,note:"Beispiel: vorher bei der Klinik anmelden.",hours:"H24"},
+ {name:"Beispiel E – Raum Frankfurt",kind:"Flugplatz",lat:50.05,lon:8.60,day:true,night:false,note:"",hours:"Personal 06–22 LT"}
+];
+
+const state={stations:[],pos:null,time:"alle",view:"karte",sel:null,q:"",placing:false,editId:null,
+  key:null,salt:null,iter:ITER,aeroKey:"",aeroOn:false,isSample:false,
+  meta:{updated:null,base:null,dirty:false},conflict:false,
+  settings:{theme:"",edit:false},gh:{repo:"",token:""}};
+
+/* ---------- Speicher ---------- */
+const store={get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
+             set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}},
+             del(k){try{localStorage.removeItem(k)}catch(e){}}};
+const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+function normalize(s){
+  const n=x=>{const v=parseFloat(String(x??"").replace(",","."));return isFinite(v)?v:NaN};
+  return {id:s.id||uid(),name:String(s.name||"").trim(),icao:String(s.icao||"").trim().toUpperCase(),kind:s.kind||"Sonstiges",
+    lat:n(s.lat),lon:n(s.lon),address:s.address||"",fuel:s.fuel||"Jet A-1",day:!!s.day,night:!!s.night,
+    note:s.note||s.accessNote||"",hours:s.hours||"",phone:s.phone||"",notes:s.notes||"",updated:s.updated||""};
+}
+const valid=s=>s.name&&isFinite(s.lat)&&isFinite(s.lon)&&Math.abs(s.lat)<=90&&Math.abs(s.lon)<=180;
+
+/* ---------- Verschlüsselung (AES-256-GCM, Schlüssel per PBKDF2-SHA256 aus dem Passwort) ---------- */
+const te=new TextEncoder(),td=new TextDecoder();
+function b64(buf){const u=buf instanceof Uint8Array?buf:new Uint8Array(buf);let s="";for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s)}
+const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const cryptoOk=()=>!!(window.crypto&&crypto.subtle);
+async function deriveKey(pass,salt,iter){const base=await crypto.subtle.importKey("raw",te.encode(pass),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:iter,hash:"SHA-256"},base,{name:"AES-GCM",length:256},true,["encrypt","decrypt"])}
+async function sealObj(obj){const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},state.key,te.encode(JSON.stringify(obj)));
+  return {format:"tankpunkte-enc",v:1,kdf:"PBKDF2-SHA256",iter:state.iter,salt:b64(state.salt),iv:b64(iv),data:b64(ct)}}
+async function openObj(env,key){const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(env.iv)},key,unb64(env.data));return JSON.parse(td.decode(pt))}
+async function rememberKey(){const raw=await crypto.subtle.exportKey("raw",state.key);store.set(K_KEY,{salt:b64(state.salt),k:b64(raw)})}
+async function recallKey(saltB64){const r=store.get(K_KEY);if(!r||r.salt!==saltB64)return null;
+  try{return await crypto.subtle.importKey("raw",unb64(r.k),{name:"AES-GCM"},true,["encrypt","decrypt"])}catch(e){return null}}
+async function fetchCentral(){try{const r=await fetch(CENTRAL,{cache:"no-store"});if(!r.ok)return null;const j=await r.json();return j&&j.format==="tankpunkte-enc"?j:null}catch(e){return null}}
+
+async function saveLocal(){if(!state.key)return;try{const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:state.meta,isSample:state.isSample,gh:state.gh});
+  if(!store.set(K_LOCAL,env))toast("Lokales Speichern nicht möglich – bitte exportieren.")}catch(e){toast("Speichern fehlgeschlagen")}}
+function markChanged(){state.isSample=false;state.meta.updated=new Date().toISOString();state.meta.dirty=true;saveLocal();renderBanners()}
+
+/* ---------- Sperrbildschirm ---------- */
+let lockMode="unlock",lockEnv=null,localEnv=null;
+function showLock(mode,msg){lockMode=mode;$("#lock").hidden=false;const setup=mode==="setup";
+  $("#lockTitle").textContent=setup?"Einrichten":"Tankpunkt-Finder";
+  $("#lockText").textContent=msg||(setup?"Noch keine verschlüsselte Liste gefunden. Lege ein Passwort für eure Crew fest. Danach kannst du eure Tankpunkte importieren.":"Die Tankpunktliste ist verschlüsselt. Bitte Passwort eingeben.");
+  $("#lockPass2").hidden=!setup;$("#lockBtn").textContent=setup?"Passwort festlegen":"Entsperren";$("#lockErr").textContent="";
+  $("#lockPass").value="";$("#lockPass2").value="";setTimeout(()=>$("#lockPass").focus(),50)}
+$("#lockForm").addEventListener("submit",async e=>{e.preventDefault();const p=$("#lockPass").value;const err=$("#lockErr");
+  if(!cryptoOk()){err.textContent="Dieser Browser kann nicht entschlüsseln. Bitte über https öffnen.";return}
+  if(lockMode==="setup"){
+    if(p.length<10){err.textContent="Mindestens 10 Zeichen. Tipp: drei Wörter, z. B. Kerosin-Nacht-Westerwald.";return}
+    if(p!==$("#lockPass2").value){err.textContent="Die Passwörter stimmen nicht überein.";return}
+    $("#lockBtn").textContent="Wird eingerichtet …";$("#lockBtn").disabled=true;
+    try{state.salt=crypto.getRandomValues(new Uint8Array(16));state.iter=ITER;state.key=await deriveKey(p,state.salt,state.iter);
+      state.stations=SAMPLES.map(normalize);state.isSample=true;state.meta={updated:new Date().toISOString(),base:null,dirty:true};
+      state.settings.edit=true;store.set(K_SET,state.settings);
+      if($("#lockRemember").checked){try{await rememberKey()}catch(x){}}
+      await saveLocal();unlocked()}
+    catch(x){err.textContent="Einrichten fehlgeschlagen ("+(x&&x.name||"Fehler")+"). Bitte die App im normalen Browser über https öffnen, nicht in einer Vorschau.";$("#lockBtn").textContent="Passwort festlegen"}
+    finally{$("#lockBtn").disabled=false}
+    return}
+  $("#lockBtn").textContent="Wird entschlüsselt …";$("#lockBtn").disabled=true;
+  try{const env=lockEnv;const key=await deriveKey(p,unb64(env.salt),env.iter||ITER);await openObj(env,key);
+    state.key=key;state.salt=unb64(env.salt);state.iter=env.iter||ITER;
+    if($("#lockRemember").checked)await rememberKey();else store.del(K_KEY);
+    await loadData();unlocked()}
+  catch(x){err.textContent=x&&x.name==="OperationError"?"Passwort falsch.":"Entsperren fehlgeschlagen ("+(x&&x.name||"Fehler")+").";$("#lockBtn").textContent="Entsperren"}
+  finally{$("#lockBtn").disabled=false}});
+function unlocked(){$("#lock").hidden=true;applyEditMode();try{render(false)}catch(e){console.error(e)}if(!map){try{startMap()}catch(e){console.error(e);toast("Karte konnte nicht starten.")}}else render(true)}
+
+/* Daten zusammenführen: zentrale Liste vs. lokale (evtl. unveröffentlichte) Änderungen */
+async function loadData(){
+  let c=null,l=null;
+  if(lockEnv&&lockEnv.src==="central"){try{c=await openObj(lockEnv,state.key)}catch(e){}}
+  if(localEnv&&localEnv.salt===b64(state.salt)){try{l=await openObj(localEnv,state.key)}catch(e){}}
+  if(lockEnv&&lockEnv.src==="local")l=l||await openObj(lockEnv,state.key);
+  state.conflict=false;if(l&&l.gh)state.gh=l.gh;
+  if(l&&l.meta&&l.meta.dirty){useData(l);if(c&&c.meta&&c.meta.updated&&c.meta.updated!==l.meta.base)state.conflict=c}
+  else if(c){useData(c);state.meta={updated:c.meta&&c.meta.updated||null,base:c.meta&&c.meta.updated||null,dirty:false};await saveLocal()}
+  else if(l)useData(l);
+}
+function useData(d){if(d.gh)state.gh=d.gh;state.stations=(d.stations||[]).map(normalize).filter(valid);state.aeroKey=d.aeroKey||"";state.isSample=!!d.isSample;
+  state.meta=Object.assign({updated:null,base:null,dirty:false},d.meta||{})}
+
+/* ---------- Geo ---------- */
+const R=Math.PI/180;
+function distKm(a,b){const dLa=(b.lat-a.lat)*R,dLo=(b.lon-a.lon)*R;const h=Math.sin(dLa/2)**2+Math.cos(a.lat*R)*Math.cos(b.lat*R)*Math.sin(dLo/2)**2;return 12742*Math.asin(Math.sqrt(h))}
+function bearing(a,b){const y=Math.sin((b.lon-a.lon)*R)*Math.cos(b.lat*R);const x=Math.cos(a.lat*R)*Math.sin(b.lat*R)-Math.sin(a.lat*R)*Math.cos(b.lat*R)*Math.cos((b.lon-a.lon)*R);return (Math.atan2(y,x)/R+360)%360}
+function fmtDM(v,pos,neg,w){const h=v>=0?pos:neg;v=Math.abs(v);let d=Math.floor(v);let m=(v-d)*60;if(m>=59.995){d++;m=0}return h+String(d).padStart(w,"0")+"°"+m.toFixed(2).padStart(5,"0")+"'"}
+const fmtCoord=s=>fmtDM(s.lat,"N","S",2)+" "+fmtDM(s.lon,"E","W",3);
+const fmt=(v,d=0)=>v.toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d});
+const crs=v=>String(Math.round(v)%360).padStart(3,"0")+"°";
+/* Sonnenhöhe (vereinfachte NOAA-Formel) – Nacht = Sonne unter −6° */
+function sunAlt(date,lat,lon){const d=date.getTime()/86400000-10957.5;
+  const g=(357.529+0.98560028*d)*R,q=280.459+0.98564736*d,L=(q+1.915*Math.sin(g)+0.020*Math.sin(2*g))*R,e=(23.439-0.00000036*d)*R;
+  const ra=Math.atan2(Math.cos(e)*Math.sin(L),Math.cos(L)),dec=Math.asin(Math.sin(e)*Math.sin(L));
+  const gmst=((18.697374558+24.06570982441908*d)%24+24)%24,H=(gmst*15+lon)*R-ra;
+  return Math.asin(Math.sin(lat*R)*Math.sin(dec)+Math.cos(lat*R)*Math.cos(dec)*Math.cos(H))/R}
+function sunInfo(){const p=state.pos||{lat:51.2,lon:10.4};const now=new Date();const alt=sunAlt(now,p.lat,p.lon);const night=alt<-6;
+  let change=null;for(let i=1;i<=900;i++){const t=new Date(now.getTime()+i*120000);if((sunAlt(t,p.lat,p.lon)<-6)!==night){change=t;break}}
+  return {alt,night,change}}
+const hhmm=d=>d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+
+/* ---------- Karte ---------- */
+const pinHtml=(s,sel)=>`<div class="pin ${s.night?"n":"d"} ${sel?"sel":""}">${s.night?"N":"T"}</div>`;
+let map=null;
+const MapV={
+  init(el){this.m=L.map(el).setView([51.2,10.4],6);
+    const ESRI={u:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",o:{maxZoom:19,attribution:"© Esri, OpenStreetMap"}};
+    const OSMT={u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",o:{maxZoom:19,attribution:"© OpenStreetMap"}};
+    const SRC=location.protocol==="file:"?[ESRI,OSMT]:[OSMT,ESRI];
+    let si=0,ok=false,errs=0;const add=()=>{if(this.tl)this.m.removeLayer(this.tl);ok=false;errs=0;this.tl=L.tileLayer(SRC[si].u,SRC[si].o).addTo(this.m);
+      this.tl.on("tileload",()=>{ok=true});this.tl.on("tileerror",()=>{if(ok)return;if(++errs>=4&&si<SRC.length-1){si++;add()}})};
+    add();
+    this.m.createPane("aero");this.m.getPane("aero").style.zIndex=350;this.m.getPane("aero").style.pointerEvents="none";
+    this.layer=L.layerGroup().addTo(this.m);this.m.on("click",e=>this.onClick&&this.onClick(e.latlng.lat,e.latlng.lng))},
+  setAero(key,on){if(this.aero){this.m.removeLayer(this.aero);this.aero=null}
+    if(key&&on){let warned=false,ok=false;this.aero=L.tileLayer("https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey="+encodeURIComponent(key),
+      {pane:"aero",minZoom:4,maxNativeZoom:14,maxZoom:19,opacity:.95,attribution:"Lufträume © openAIP (nicht für die Flugplanung)"}).addTo(this.m);
+      this.aero.on("tileload",()=>ok=true);this.aero.on("tileerror",()=>{if(!ok&&!warned){warned=true;toast("Luftraum-Overlay lädt nicht – openAIP-Schlüssel prüfen.")}})}},
+  setStations(list,sel,cb){this.layer.clearLayers();list.forEach(s=>{const mk=L.marker([s.lat,s.lon],{zIndexOffset:s.id===sel?500:0,icon:L.divIcon({className:"",html:pinHtml(s,s.id===sel),iconSize:[26,26],iconAnchor:[13,13]})});
+    mk.on("click",()=>cb(s.id));mk.bindTooltip(esc(s.name),{direction:"top",offset:[0,-12]});mk.addTo(this.layer)})},
+  setUser(p){if(!p)return;if(!this.u)this.u=L.marker([p.lat,p.lon],{zIndexOffset:1000,interactive:false,icon:L.divIcon({className:"",html:'<div class="me"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(this.m);else this.u.setLatLng([p.lat,p.lon])},
+  focus(lat,lon,z){this.m.setView([lat,lon],Math.max(this.m.getZoom(),z||10))},
+  fit(pts){if(!pts.length)return;if(pts.length===1)return this.focus(pts[0][0],pts[0][1],10);this.m.fitBounds(pts,{padding:[40,40],maxZoom:11})},
+  resize(){this.m.invalidateSize()}
+};
+function startMap(){if(!window.L){toast("Kartenbibliothek nicht geladen – Liste funktioniert trotzdem.");return}
+  map=MapV;map.init($("#map"));map.onClick=(lat,lon)=>{if(!state.placing)return;state.placing=false;$("#placingHint").hidden=true;setPos({lat,lon,src:"manuell"},true)};
+  updateAero();render(true)}
+function updateAero(){const has=!!state.aeroKey;$("#btnAero").hidden=!has;$("#btnAero").setAttribute("aria-pressed",String(has&&state.aeroOn));if(map)map.setAero(state.aeroKey,state.aeroOn)}
+$("#btnAero").addEventListener("click",()=>{state.aeroOn=!state.aeroOn;state.settings.aeroOn=state.aeroOn;store.set(K_SET,state.settings);updateAero()});
+
+/* ---------- Standort ---------- */
+function setPos(p,fit){state.pos=p;try{sessionStorage.setItem("tp.pos",JSON.stringify(p))}catch(e){}render(fit)}
+function locate(){
+  if(!navigator.geolocation){toast("Standort nicht verfügbar – Position auf der Karte setzen.");return startPlacing()}
+  toast("Standort wird ermittelt …");
+  navigator.geolocation.getCurrentPosition(
+    g=>{setPos({lat:g.coords.latitude,lon:g.coords.longitude,src:"GPS"},true);toast("Standort aktualisiert")},
+    err=>{toast(err.code===1?"Standortfreigabe verweigert – Position auf der Karte setzen.":"Standort nicht ermittelbar – Position auf der Karte setzen.");startPlacing()},
+    {enableHighAccuracy:true,timeout:12000,maximumAge:30000})}
+function startPlacing(){if(!map)return;state.placing=true;$("#placingHint").hidden=false;if(state.view!=="karte")setView("karte")}
+
+/* ---------- Darstellung ---------- */
+function filtered(){const t=state.time;return state.stations.filter(s=>t==="tag"?s.day:t==="nacht"?s.night:true)}
+function withDist(list){if(!state.pos)return list.map(s=>({s})).sort((a,b)=>a.s.name.localeCompare(b.s.name,"de"));
+  return list.map(s=>{const km=distKm(state.pos,s);return {s,km,nm:km/1.852,crs:bearing(state.pos,s)}}).sort((a,b)=>a.km-b.km)}
+const badges=s=>`${s.night?'<span class="b n">Nacht</span>':""}${s.day?'<span class="b d">Tag</span>':""}${state.isSample?'<span class="b ex">Beispiel</span>':""}`;
+const routeUrl=s=>"https://www.google.com/maps/dir/?api=1&destination="+s.lat.toFixed(6)+","+s.lon.toFixed(6);
+const byId=id=>state.stations.find(s=>s.id===id);
+
+function render(fit){
+  const sun=sunInfo();
+  $("#sun").classList.toggle("is-night",sun.night);
+  $("#sunTxt").textContent=(sun.night?"Nacht":"Tag")+(sun.change?" bis "+hhmm(sun.change):"")+" · Sonne "+fmt(sun.alt,0)+"°";
+  document.querySelectorAll("#segTime button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===state.time)));
+  const list=withDist(filtered());
+  if(state.sel&&!list.some(x=>x.s.id===state.sel))state.sel=null;
+  const top=state.sel?list.find(x=>x.s.id===state.sel):list[0];
+  if(map){map.setStations(list.map(x=>x.s),top&&top.s.id,id=>{state.sel=id;render();const s=byId(id);if(s)map.focus(s.lat,s.lon)});map.setUser(state.pos);
+    if(fit){const pts=[];if(state.pos){pts.push([state.pos.lat,state.pos.lon]);if(list[0])pts.push([list[0].s.lat,list[0].s.lon])}else list.forEach(x=>pts.push([x.s.lat,x.s.lon]));map.fit(pts)}}
+  renderSide(list,top,sun);renderCatalog();renderBanners();
+}
+function renderBanners(){let h="";const ed=state.settings.edit;
+  if(state.isSample)h+=`<div class="banner info wrap"><span><b>Beispieldaten.</b> Die fünf Einträge sind erfunden. Importiere eure Liste im Katalog.</span></div>`;
+  if(state.conflict)h+=`<div class="banner alert wrap"><span><b>Neuere zentrale Liste vorhanden.</b> Deine lokalen Änderungen sind noch nicht veröffentlicht.</span><button class="btn small" data-act="takeCentral">Zentrale Liste übernehmen</button></div>`;
+  else if(ed&&state.meta.dirty&&!state.isSample)h+=`<div class="banner info wrap"><span><b>Änderungen nur auf diesem Gerät.</b> ${ghReady()?"Veröffentlichen, damit die Crew sie bekommt.":`Verschlüsselt exportieren und <span class="mono">${CENTRAL}</span> auf GitHub ersetzen – oder unter ⚙ GitHub verbinden.`}</span><button class="btn small primary" data-act="${ghReady()?"publish":"exportEnc"}">${ghReady()?"Jetzt veröffentlichen":"Jetzt exportieren"}</button></div>`;
+  $("#banners").innerHTML=h}
+function renderSide(list,top){
+  const label={tag:"Tagtankung",nacht:"Nachttankung",alle:"Tag & Nacht"}[state.time];let h="";
+  if(!state.pos)h+=`<div class="next plain"><span class="eyebrow">Standort fehlt</span><div>Für Distanz und Kurs den Standort freigeben oder auf der Karte setzen.</div><div class="row-actions"><button class="btn primary small" data-act="locate">◎ Standort ermitteln</button><button class="btn small" data-act="place">Auf Karte setzen</button></div></div>`;
+  if(!top)h+=`<div class="next plain"><span class="eyebrow">${label}</span><div>Kein Tankpunkt passt zum Filter.</div><div class="row-actions"><button class="btn small" data-act="all">Alle anzeigen</button></div></div>`;
+  else{const s=top.s,nearest=top===list[0]&&state.pos;
+    h+=`<article class="next"><span class="eyebrow">${nearest?"Nächster Tankpunkt · "+label:(state.sel?"Ausgewählt":label)}</span>
+      <h2>${esc(s.name)}${s.icao?` <span class="mono muted" style="font-size:16px;font-weight:400">${esc(s.icao)}</span>`:""}</h2>
+      ${state.pos?`<div class="nav"><div><small>Distanz</small><strong>${fmt(top.nm,top.nm<10?1:0)} NM</strong></div><div><small>Kurs rw</small><strong>${crs(top.crs)}</strong></div><div><small>km</small><strong>${fmt(top.km,top.km<10?1:0)}</strong></div></div>`:""}
+      <div class="badges">${badges(s)}</div>
+      ${s.note?`<div class="hintbox">${esc(s.note)}</div>`:""}
+      ${s.hours?`<div><span class="muted">Zeiten:</span> ${esc(s.hours)}</div>`:""}
+      ${s.phone?`<div><span class="muted">Kontakt:</span> <span class="mono" style="user-select:all">${esc(s.phone)}</span></div>`:""}
+      ${s.notes?`<div class="muted">${esc(s.notes)}</div>`:""}
+      <div class="coord">${fmtCoord(s)} · ${esc(s.fuel)}</div>
+      <div class="row-actions"><button class="btn small" data-act="focus" data-id="${s.id}">Auf Karte</button><a class="btn small" href="${routeUrl(s)}" target="_blank" rel="noopener">Google Maps</a><button class="btn small" data-act="copy" data-id="${s.id}">Koordinaten kopieren</button>${state.settings.edit?`<button class="btn small" data-act="edit" data-id="${s.id}">Bearbeiten</button>`:""}</div>
+    </article>`}
+  if(list.length)h+=`<div><div class="eyebrow" style="margin-bottom:6px">${list.length} Tankpunkte${state.pos?" · nach Distanz":""}</div><div class="list">`+
+    list.slice(0,50).map(x=>`<button class="item" data-act="select" data-id="${x.s.id}" aria-current="${top&&x.s.id===top.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${x.km!=null?fmt(x.nm,x.nm<10?1:0)+" NM":""}</span><span class="sub">${esc([x.s.icao,x.s.hours].filter(Boolean).join(" · "))}</span><span class="sub dist">${x.crs!=null?crs(x.crs):""}</span></button>`).join("")+`</div></div>`;
+  $("#side").innerHTML=h}
+function renderCatalog(){const q=state.q.trim().toLowerCase(),ed=state.settings.edit;
+  const rows=state.stations.filter(s=>!q||[s.name,s.icao,s.address,s.notes,s.note,s.hours,s.kind].join(" ").toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name,"de"));
+  $("#catBody").innerHTML=rows.length?rows.map(s=>`<tr>
+    <td><div class="nm">${esc(s.name)}</div><div class="muted">${esc([s.icao,s.kind,s.fuel].filter(Boolean).join(" · "))}</div>${s.address?`<div class="muted">${esc(s.address)}</div>`:""}</td>
+    <td><div class="badges">${s.day?'<span class="b d">Tag</span>':""}${s.night?'<span class="b n">Nacht</span>':""}</div></td>
+    <td><div style="max-width:36ch">${esc(s.note)}</div></td>
+    <td class="coord">${fmtCoord(s)}</td>
+    <td>${esc(s.hours)}${s.phone?`<div class="mono">${esc(s.phone)}</div>`:""}${s.updated?`<div class="muted">geprüft ${esc(new Date(s.updated).toLocaleDateString("de-DE"))}</div>`:""}</td>
+    ${ed?`<td><div class="row-actions"><button class="btn small" data-act="edit" data-id="${s.id}">Bearbeiten</button><button class="btn small danger" data-act="del" data-id="${s.id}">Löschen</button></div></td>`:""}</tr>`).join("")
+    :`<tr><td colspan="6" class="empty">${state.stations.length?"Keine Treffer.":"Noch keine Tankpunkte."}</td></tr>`;
+  $("#catHint").innerHTML=ed?`Bearbeitungsmodus aktiv. Änderungen liegen verschlüsselt auf diesem Gerät. „Veröffentlichen“ schickt die Liste direkt zu GitHub (unter ⚙ verbinden). Ohne Verbindung: „Verschlüsselt exportieren“ und <span class="mono">${CENTRAL}</span> im Repository ersetzen. CSV-Import erkennt Spalten wie Name, ICAO, Lat, Lon, Tag, Nacht, Hinweis, Zeiten, Telefon, Notizen (Trennzeichen ; oder ,).`
+    :`Stand der Liste: ${state.meta.updated?new Date(state.meta.updated).toLocaleString("de-DE",{dateStyle:"medium",timeStyle:"short"}):"unbekannt"}.`}
+function applyEditMode(){document.querySelectorAll(".edit-only").forEach(el=>el.hidden=!state.settings.edit)}
+
+/* ---------- Aktionen ---------- */
+function setView(v){state.view=v;$("#view-karte").hidden=v!=="karte";$("#view-katalog").hidden=v!=="katalog";
+  $("#tab-karte").setAttribute("aria-selected",String(v==="karte"));$("#tab-katalog").setAttribute("aria-selected",String(v==="katalog"));
+  if(v==="karte"&&map)setTimeout(()=>map.resize(),30)}
+let delArm=null;
+document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]");if(!b)return;const id=b.dataset.id,s=id&&byId(id);
+  switch(b.dataset.act){
+    case "locate":locate();break;
+    case "place":startPlacing();break;
+    case "all":state.time="alle";persistUi();render(true);break;
+    case "select":state.sel=id;render();if(map&&s)map.focus(s.lat,s.lon);break;
+    case "focus":if(map&&s){setView("karte");map.focus(s.lat,s.lon,12)}break;
+    case "copy":if(s)copy(fmtCoord(s)+"  ("+s.lat.toFixed(5)+", "+s.lon.toFixed(5)+")");break;
+    case "edit":openEdit(s);break;
+    case "exportEnc":exportEnc();break;
+    case "publish":publish(b);break;
+    case "takeCentral":if(state.conflict){useData(state.conflict);state.meta.base=state.meta.updated;state.meta.dirty=false;state.conflict=false;await saveLocal();render(true);toast("Zentrale Liste übernommen")}break;
+    case "del":if(delArm!==id){delArm=id;b.textContent="Wirklich löschen?";setTimeout(()=>{if(delArm===id){delArm=null;renderCatalog()}},3500);break}
+      delArm=null;state.stations=state.stations.filter(x=>x.id!==id);markChanged();render();toast("Gelöscht");break;
+  }});
+function copy(t){const ok=()=>toast("Kopiert: "+t);if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,()=>fallbackCopy(t));else fallbackCopy(t)}
+function fallbackCopy(t){const ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("Kopiert")}catch(e){toast(t)}ta.remove()}
+let toastT;function toast(t){const el=$("#toast");el.textContent=t;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,3400)}
+function persistUi(){state.settings.time=state.time;store.set(K_SET,state.settings)}
+
+/* Bearbeiten */
+function openEdit(s){if(!state.settings.edit)return;state.editId=s?s.id:null;$("#editTitle").textContent=s?"Tankpunkt bearbeiten":"Neuer Tankpunkt";
+  const v=s||normalize({day:true,night:false,kind:"Flugplatz"});
+  $("#e_name").value=v.name;$("#e_icao").value=v.icao;$("#e_kind").value=KINDS.includes(v.kind)?v.kind:"Sonstiges";
+  $("#e_lat").value=isFinite(v.lat)?v.lat:"";$("#e_lon").value=isFinite(v.lon)?v.lon:"";$("#e_address").value=v.address;$("#e_fuel").value=v.fuel;
+  $("#e_day").checked=v.day;$("#e_night").checked=v.night;$("#e_hours").value=v.hours;$("#e_note").value=v.note;$("#e_phone").value=v.phone;$("#e_notes").value=v.notes;$("#e_updated").value=v.updated||"";
+  $("#dlgEdit").showModal()}
+$("#formEdit").addEventListener("submit",e=>{e.preventDefault();
+  const o=normalize({id:state.editId||undefined,name:$("#e_name").value,icao:$("#e_icao").value,kind:$("#e_kind").value,lat:$("#e_lat").value,lon:$("#e_lon").value,address:$("#e_address").value,fuel:$("#e_fuel").value||"Jet A-1",
+    day:$("#e_day").checked,night:$("#e_night").checked,hours:$("#e_hours").value,note:$("#e_note").value,phone:$("#e_phone").value,notes:$("#e_notes").value,updated:$("#e_updated").value});
+  if(!valid(o)){toast("Name und gültige Koordinaten (z. B. 51.5181 / 7.6122) eintragen.");return}
+  if(state.isSample)state.stations=[];
+  const i=state.stations.findIndex(x=>x.id===o.id);if(i>=0)state.stations[i]=o;else state.stations.push(o);
+  markChanged();$("#dlgEdit").close();state.sel=o.id;render();toast("Gespeichert")});
+$("#e_usepos").addEventListener("click",()=>{if(!state.pos){toast("Noch kein Standort – erst „Standort“ antippen.");return}$("#e_lat").value=state.pos.lat.toFixed(6);$("#e_lon").value=state.pos.lon.toFixed(6)});
+document.querySelectorAll("dialog [data-close]").forEach(b=>b.addEventListener("click",()=>b.closest("dialog").close()));
+
+/* Einstellungen */
+$("#btnSettings").addEventListener("click",()=>{$("#s_theme").value=state.settings.theme||"";$("#s_edit").checked=!!state.settings.edit;$("#s_aero").value=state.aeroKey;$("#s_repo").value=state.gh.repo||guessRepo();$("#s_token").value=state.gh.token||"";$("#s_np1").value="";$("#s_np2").value="";$("#dlgSettings").showModal()});
+$("#s_edit").addEventListener("change",e=>{state.settings.edit=e.target.checked;applyEditMode()});
+$("#formSettings").addEventListener("submit",e=>{e.preventDefault();
+  state.settings.theme=$("#s_theme").value;state.settings.edit=$("#s_edit").checked;store.set(K_SET,state.settings);applyTheme();applyEditMode();
+  if(state.settings.edit){const k=$("#s_aero").value.trim();if(k!==state.aeroKey){state.aeroKey=k;if(k)state.aeroOn=true;markChanged();updateAero()}
+    const repo=$("#s_repo").value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\.git$/,"").replace(/\/$/,""),token=$("#s_token").value.trim();
+    if(repo!==state.gh.repo||token!==state.gh.token){state.gh={repo,token};saveLocal()}}
+  $("#dlgSettings").close();render()});
+$("#s_chpass").addEventListener("click",async()=>{const a=$("#s_np1").value,b=$("#s_np2").value;
+  if(a.length<10){toast("Mindestens 10 Zeichen.");return}if(a!==b){toast("Passwörter stimmen nicht überein.");return}
+  state.salt=crypto.getRandomValues(new Uint8Array(16));state.iter=ITER;state.key=await deriveKey(a,state.salt,state.iter);
+  if(store.get(K_KEY))await rememberKey();markChanged();$("#s_np1").value="";$("#s_np2").value="";toast("Passwort geändert – jetzt verschlüsselt exportieren und hochladen.")});
+$("#s_reload").addEventListener("click",async()=>{const env=await fetchCentral();if(!env){toast("Keine "+CENTRAL+" auf dem Server gefunden.");return}
+  if(env.salt!==b64(state.salt)){toast("Das Passwort wurde geändert – bitte neu entsperren.");store.del(K_KEY);setTimeout(()=>location.reload(),1200);return}
+  try{const c=await openObj(env,state.key);if(state.meta.dirty&&state.settings.edit){state.conflict=c;renderBanners();toast("Lokale Änderungen vorhanden – Hinweis oben beachten.")}
+    else{useData(c);state.meta.base=state.meta.updated;state.meta.dirty=false;await saveLocal();render(true);toast(state.stations.length+" Tankpunkte geladen")}}
+  catch(x){toast("Zentrale Liste konnte nicht entschlüsselt werden.")}
+  $("#dlgSettings").close()});
+$("#s_lock").addEventListener("click",()=>{store.del(K_KEY);location.reload()});
+$("#s_reset").addEventListener("click",function(){if(this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Wirklich zurücksetzen?";return}
+  store.del(K_LOCAL);store.del(K_KEY);store.del(K_SET);location.reload()});
+function applyTheme(){const t=state.settings.theme;if(t)document.documentElement.setAttribute("data-theme",t);else document.documentElement.removeAttribute("data-theme")}
+
+/* ---------- Import / Export ---------- */
+function parseCSV(text){text=text.replace(/^﻿/,"");const first=text.split(/\r?\n/)[0]||"";const delim=(first.split(";").length>=first.split(",").length)?";":",";
+  const rows=[];let row=[],f="",q=false;for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;else if(c===delim){row.push(f);f=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(f);rows.push(row);row=[];f=""}else f+=c}
+  if(f||row.length){row.push(f);rows.push(row)}return rows.filter(r=>r.some(x=>x.trim()!==""))}
+const MAP={name:["name","bezeichnung","tankstelle","tankpunkt"],icao:["icao","kennung","kürzel"],kind:["typ","art","kategorie"],lat:["lat","breite","breitengrad","latitude","nord"],lon:["lon","lng","länge","laenge","längengrad","longitude","ost"],
+  coords:["koordinaten","position"],address:["adresse","anschrift","ort","lage"],fuel:["kraftstoff","fuel","treibstoff"],day:["tag","tagverfügbar","tagsüber","tags"],night:["nacht","nachtverfügbar","nachts"],
+  hours:["zeiten","öffnungszeiten","uhrzeit","verfügbarkeit"],note:["hinweis","anweisung","anweisungen","zugangshinweis","hinweisvorort","ablauf"],
+  phone:["telefon","tel","kontakt","telefonnummer"],notes:["notizen","notiz","bemerkung","bemerkungen","info"],updated:["geprüft","geprueft","stand","aktualisiert"]};
+const nk=s=>String(s).toLowerCase().replace(/[^a-zäöüß]/g,"");
+const truthy=v=>/^(ja|j|x|1|true|yes|y|✓|h24|24h)$/i.test(String(v).trim());
+function rowsToStations(rows){const head=rows[0].map(nk);const idx={};for(const k in MAP){const i=head.findIndex(h=>MAP[k].includes(h));if(i>=0)idx[k]=i}
+  if(idx.name==null)throw new Error("Spalte „Name“ nicht gefunden.");
+  return rows.slice(1).map(r=>{const g=k=>idx[k]!=null?(r[idx[k]]||"").trim():"";let lat=g("lat"),lon=g("lon");
+    if((!lat||!lon)&&g("coords")){const m=g("coords").match(/(-?\d+(?:[.,]\d+)?)\D+(-?\d+(?:[.,]\d+)?)/);if(m){lat=m[1];lon=m[2]}}
+    const day=g("day"),night=g("night");
+    return normalize({name:g("name"),icao:g("icao"),kind:g("kind"),lat,lon,address:g("address"),fuel:g("fuel"),day:day?truthy(day):true,night:night?truthy(night):/h24|24/i.test(g("hours")),hours:g("hours"),note:g("note"),phone:g("phone"),notes:g("notes"),updated:g("updated")})}).filter(valid)}
+$("#fileImport").addEventListener("change",async e=>{const file=e.target.files[0];e.target.value="";if(!file)return;
+  try{const txt=await file.text();let arr;
+    if(/^\s*[\[{]/.test(txt)){const j=JSON.parse(txt);if(j.format==="tankpunkte-enc")throw new Error("Verschlüsselte Datei – bitte als "+CENTRAL+" auf den Server legen.");arr=(Array.isArray(j)?j:(j.stations||[])).map(normalize).filter(valid)}
+    else arr=rowsToStations(parseCSV(txt));
+    if(!arr.length){toast("Keine gültigen Zeilen gefunden (Name + Koordinaten nötig).");return}
+    const base=state.isSample?[]:state.stations;const key=s=>s.name.toLowerCase()+"|"+s.lat.toFixed(3)+"|"+s.lon.toFixed(3);const seen=new Map(base.map(s=>[key(s),s]));
+    let added=0,upd=0;arr.forEach(s=>{const k=key(s);if(seen.has(k)){Object.assign(seen.get(k),s,{id:seen.get(k).id});upd++}else{base.push(s);seen.set(k,s);added++}});
+    state.stations=base;markChanged();render(true);toast(added+" neu, "+upd+" aktualisiert")}
+  catch(err){toast("Import fehlgeschlagen: "+err.message)}});
+function download(name,text,type){const blob=new Blob([text],{type});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+async function exportEnc(){if(!state.key)return;const updated=state.meta.updated||new Date().toISOString();
+  const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:{updated},isSample:false});
+  download(CENTRAL,JSON.stringify(env),"application/json");state.meta.updated=updated;state.meta.base=updated;state.meta.dirty=false;state.isSample=false;await saveLocal();renderBanners();
+  toast("Exportiert – Datei im GitHub-Repository ersetzen.")}
+/* Direkt zu GitHub veröffentlichen (Contents-API, Token nur lokal) */
+function guessRepo(){const m=location.hostname.match(/^([^.]+)\.github\.io$/);if(!m)return "";const seg=location.pathname.split("/").filter(Boolean)[0];return m[1]+"/"+(seg&&!/\.html?$/.test(seg)?seg:m[1]+".github.io")}
+const ghReady=()=>!!(state.gh&&state.gh.repo&&state.gh.token);
+async function publish(btn){if(!ghReady()){toast("Erst unter ⚙ GitHub verbinden (Repository + Token).");return}
+  const old=btn&&btn.textContent;if(btn){btn.disabled=true;btn.textContent="Wird veröffentlicht …"}
+  try{const updated=state.meta.updated||new Date().toISOString();
+    const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:{updated},isSample:false});
+    const api="https://api.github.com/repos/"+state.gh.repo+"/contents/"+CENTRAL;
+    const hd={"Authorization":"Bearer "+state.gh.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};
+    let sha;const g=await fetch(api+"?t="+Date.now(),{headers:hd,cache:"no-store"});
+    if(g.ok)sha=(await g.json()).sha;else if(g.status!==404)throw new Error(g.status===401?"Token ungültig oder abgelaufen":g.status===403?"Token hat keine Schreibrechte":"GitHub antwortet mit "+g.status);
+    const body={message:"Tankpunkte aktualisiert ("+state.stations.length+")",content:btoa(JSON.stringify(env))};if(sha)body.sha=sha;
+    const r=await fetch(api,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},hd),body:JSON.stringify(body)});
+    if(!r.ok){const t=await r.json().catch(()=>({}));throw new Error(r.status===404?"Repository nicht gefunden – Name prüfen":r.status===409?"Konflikt – bitte erneut versuchen":(t.message||("Fehler "+r.status)))}
+    state.meta.updated=updated;state.meta.base=updated;state.meta.dirty=false;state.isSample=false;state.conflict=false;await saveLocal();render();
+    toast("Veröffentlicht. Die Crew sieht die Liste nach 1–10 Minuten.")}
+  catch(x){toast("Veröffentlichen fehlgeschlagen: "+x.message)}
+  finally{if(btn){btn.disabled=false;btn.textContent=old}}}
+$("#btnPublish").addEventListener("click",e=>publish(e.currentTarget));
+const csvCell=v=>{v=String(v??"");return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+const CSV_HEAD=["Name","ICAO","Art","Lat","Lon","Adresse","Kraftstoff","Tag","Nacht","Zeiten","Hinweis","Telefon","Notizen","Geprüft"];
+const toRow=s=>[s.name,s.icao,s.kind,String(s.lat).replace(".",","),String(s.lon).replace(".",","),s.address,s.fuel,s.day?"ja":"nein",s.night?"ja":"nein",s.hours,s.note,s.phone,s.notes,s.updated];
+$("#btnExportEnc").addEventListener("click",exportEnc);
+$("#btnExportCsv").addEventListener("click",()=>download("tankpunkte-"+new Date().toISOString().slice(0,10)+".csv","﻿"+[CSV_HEAD,...state.stations.map(toRow)].map(r=>r.map(csvCell).join(";")).join("\r\n"),"text/csv"));
+$("#btnTemplate").addEventListener("click",()=>download("tankpunkte-vorlage.csv","﻿"+[CSV_HEAD,toRow(normalize(SAMPLES[0]))].map(r=>r.map(csvCell).join(";")).join("\r\n"),"text/csv"));
+
+/* ---------- UI ---------- */
+$("#segTime").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;state.time=b.dataset.v;state.sel=null;persistUi();render(true)});
+$("#e_kind").innerHTML=KINDS.map(k=>`<option>${k}</option>`).join("");
+$("#tab-karte").addEventListener("click",()=>setView("karte"));$("#tab-katalog").addEventListener("click",()=>setView("katalog"));
+$("#btnLocate").addEventListener("click",locate);$("#btnNew").addEventListener("click",()=>openEdit(null));
+$("#q").addEventListener("input",e=>{state.q=e.target.value;renderCatalog()});
+setInterval(()=>{if(state.key)render(false)},60000);
+
+/* ---------- Start ---------- */
+(async function boot(){
+  const st=store.get(K_SET);if(st)state.settings=Object.assign(state.settings,st);applyTheme();applyEditMode();
+  if(["tag","nacht","alle"].includes(state.settings.time))state.time=state.settings.time;state.aeroOn=state.settings.aeroOn!==false;
+  try{const p=JSON.parse(sessionStorage.getItem("tp.pos")||"null");if(p)state.pos=p}catch(e){}
+  if(!cryptoOk()){showLock("unlock","Dieser Browser unterstützt keine Entschlüsselung. Bitte die App über https öffnen.");return}
+  const central=await fetchCentral();localEnv=store.get(K_LOCAL);
+  if(central){central.src="central";lockEnv=central}else if(localEnv){lockEnv=Object.assign({},localEnv,{src:"local"})}
+  if(!lockEnv){showLock("setup");return}
+  const k=await recallKey(lockEnv.salt);
+  if(k){try{await openObj(lockEnv,k);state.key=k;state.salt=unb64(lockEnv.salt);state.iter=lockEnv.iter||ITER;await loadData();unlocked();return}catch(e){store.del(K_KEY)}}
+  showLock("unlock",central&&localEnv&&localEnv.salt!==central.salt?"Das Passwort wurde geändert. Bitte das neue Passwort eingeben.":null);
+})();
+</script>
+</body>
+</html>
