@@ -174,7 +174,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
 .lock-card{width:min(400px,100%);display:flex;flex-direction:column;gap:14px}
 .lock-card h1{margin:0;font-family:var(--f-display);font-size:34px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;line-height:1}
 .lock-card p{margin:0;color:var(--head-muted)}
-.lock-card input[type=password]{width:100%;padding:12px 13px;border-radius:var(--r);border:1px solid var(--head-line);background:#11171c;color:#eef1f4;font-size:17px}
+.lock-card input[type=password]{width:100%;padding:12px 13px;border-radius:var(--r);border:1px solid var(--head-line);background:#11171c;color:#eef1f4;font:500 26px/1.2 var(--f-mono);letter-spacing:.5em;text-align:center}
 .lock-card label.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--head-fg)}
 .lock-card .btn.primary{padding:12px;font-size:17px;font-family:var(--f-display);text-transform:uppercase;letter-spacing:.05em;color:#fff}
 .lock-err{color:#ff8a8f;font-weight:600;min-height:1.4em}
@@ -189,13 +189,13 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
   <form class="lock-card" id="lockForm" autocomplete="off">
     <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3 4 5 6.6 5 9.5A5 5 0 0 1 7 12.5C7 9.6 9 7 12 3z"/></svg></div></div>
     <h1 id="lockTitle">Tankpunkt-Finder</h1>
-    <p id="lockText">Die Tankpunktliste ist verschlüsselt. Bitte Passwort eingeben.</p>
-    <input type="password" id="lockPass" placeholder="Passwort" aria-label="Passwort" autocomplete="current-password">
-    <input type="password" id="lockPass2" placeholder="Passwort wiederholen" aria-label="Passwort wiederholen" hidden autocomplete="new-password">
+    <p id="lockText">Die Tankpunktliste ist verschlüsselt. Bitte PIN eingeben.</p>
+    <input type="password" id="lockPass" placeholder="PIN" aria-label="PIN" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off">
+    <input type="password" id="lockPass2" placeholder="PIN wiederholen" aria-label="PIN wiederholen" inputmode="numeric" pattern="[0-9]*" maxlength="4" hidden autocomplete="off">
     <label class="chk"><input type="checkbox" id="lockRemember" checked> Auf diesem Gerät entsperrt bleiben</label>
     <div class="lock-err" id="lockErr" role="alert"></div>
     <button class="btn primary" type="submit" id="lockBtn">Entsperren</button>
-    <div class="lock-foot" id="lockFoot">Verschlüsselung AES-256 · Passwort wird nicht übertragen</div>
+    <div class="lock-foot" id="lockFoot">Verschlüsselung AES-256 · PIN wird nicht übertragen</div>
   </form>
 </div>
 
@@ -289,9 +289,9 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
     <div class="sect edit-only f full"><span class="flbl">GitHub-Verbindung (nur Bearbeiter)</span>
       <div class="row-actions"><input id="s_repo" placeholder="benutzer/repository" autocomplete="off" style="flex:1 1 180px"><input id="s_token" type="password" placeholder="Zugriffstoken (github_pat_…)" autocomplete="off" style="flex:1 1 220px"></div>
       <small>Fein-granularer Token, nur für dieses eine Repository, Berechtigung „Contents: Read and write“. Bleibt verschlüsselt auf diesem Gerät und wird nie mit der Liste verteilt.</small></div>
-    <div class="sect edit-only f full"><span class="flbl">Passwort ändern</span>
-      <div class="row-actions"><input type="password" id="s_np1" placeholder="Neues Passwort" autocomplete="new-password" style="flex:1 1 160px"><input type="password" id="s_np2" placeholder="Wiederholen" autocomplete="new-password" style="flex:1 1 160px"><button class="btn small" type="button" id="s_chpass">Ändern</button></div>
-      <small>Danach neu verschlüsselt exportieren und hochladen. Alle brauchen dann das neue Passwort.</small></div>
+    <div class="sect edit-only f full"><span class="flbl">PIN ändern</span>
+      <div class="row-actions"><input type="password" id="s_np1" placeholder="Neue PIN" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="flex:1 1 120px"><input type="password" id="s_np2" placeholder="Wiederholen" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="flex:1 1 120px"><button class="btn small" type="button" id="s_chpass">Ändern</button></div>
+      <small>Danach veröffentlichen. Alle brauchen dann die neue PIN.</small></div>
     <div class="sect f full"><span class="flbl">Daten</span><div class="row-actions">
       <button class="btn small" type="button" id="s_reload">Zentrale Liste neu laden</button>
       <button class="btn small" type="button" id="s_lock">Sperren</button>
@@ -310,7 +310,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const KINDS=["Flugplatz","Klinik-Landeplatz","Tanklager","Straßentankstelle","Sonstiges"];
 const CENTRAL="stations.enc.json";
-const K_LOCAL="tp.local.v2",K_KEY="tp.key.v2",K_SET="tp.settings.v2";
+const K_LOCAL="tp.local.v3",K_KEY="tp.key.v3",K_SET="tp.settings.v3";
 const ITER=210000;
 
 const SAMPLES=[
@@ -363,21 +363,21 @@ function markChanged(){state.isSample=false;state.meta.updated=new Date().toISOS
 let lockMode="unlock",lockEnv=null,localEnv=null;
 function showLock(mode,msg){lockMode=mode;$("#lock").hidden=false;const setup=mode==="setup";
   $("#lockTitle").textContent=setup?"Einrichten":"Tankpunkt-Finder";
-  $("#lockText").textContent=msg||(setup?"Noch keine verschlüsselte Liste gefunden. Lege ein Passwort für eure Crew fest. Danach kannst du eure Tankpunkte importieren.":"Die Tankpunktliste ist verschlüsselt. Bitte Passwort eingeben.");
-  $("#lockPass2").hidden=!setup;$("#lockBtn").textContent=setup?"Passwort festlegen":"Entsperren";$("#lockErr").textContent="";
+  $("#lockText").textContent=msg||(setup?"Noch keine verschlüsselte Liste gefunden. Lege eine 4-stellige PIN für eure Crew fest. Danach kannst du eure Tankpunkte importieren.":"Die Tankpunktliste ist verschlüsselt. Bitte PIN eingeben.");
+  $("#lockPass2").hidden=!setup;$("#lockBtn").textContent=setup?"PIN festlegen":"Entsperren";$("#lockErr").textContent="";
   $("#lockPass").value="";$("#lockPass2").value="";setTimeout(()=>$("#lockPass").focus(),50)}
 $("#lockForm").addEventListener("submit",async e=>{e.preventDefault();const p=$("#lockPass").value;const err=$("#lockErr");
   if(!cryptoOk()){err.textContent="Dieser Browser kann nicht entschlüsseln. Bitte über https öffnen.";return}
   if(lockMode==="setup"){
-    if(p.length<10){err.textContent="Mindestens 10 Zeichen. Tipp: drei Wörter, z. B. Kerosin-Nacht-Westerwald.";return}
-    if(p!==$("#lockPass2").value){err.textContent="Die Passwörter stimmen nicht überein.";return}
+    if(!/^\d{4}$/.test(p)){err.textContent="Bitte genau 4 Ziffern eingeben.";return}
+    if(p!==$("#lockPass2").value){err.textContent="Die beiden PINs stimmen nicht überein.";return}
     $("#lockBtn").textContent="Wird eingerichtet …";$("#lockBtn").disabled=true;
     try{state.salt=crypto.getRandomValues(new Uint8Array(16));state.iter=ITER;state.key=await deriveKey(p,state.salt,state.iter);
       state.stations=SAMPLES.map(normalize);state.isSample=true;state.meta={updated:new Date().toISOString(),base:null,dirty:true};
       state.settings.edit=true;store.set(K_SET,state.settings);
       if($("#lockRemember").checked){try{await rememberKey()}catch(x){}}
       await saveLocal();unlocked()}
-    catch(x){err.textContent="Einrichten fehlgeschlagen ("+(x&&x.name||"Fehler")+"). Bitte die App im normalen Browser über https öffnen, nicht in einer Vorschau.";$("#lockBtn").textContent="Passwort festlegen"}
+    catch(x){err.textContent="Einrichten fehlgeschlagen ("+(x&&x.name||"Fehler")+"). Bitte die App im normalen Browser über https öffnen, nicht in einer Vorschau.";$("#lockBtn").textContent="PIN festlegen"}
     finally{$("#lockBtn").disabled=false}
     return}
   $("#lockBtn").textContent="Wird entschlüsselt …";$("#lockBtn").disabled=true;
@@ -385,8 +385,10 @@ $("#lockForm").addEventListener("submit",async e=>{e.preventDefault();const p=$(
     state.key=key;state.salt=unb64(env.salt);state.iter=env.iter||ITER;
     if($("#lockRemember").checked)await rememberKey();else store.del(K_KEY);
     await loadData();unlocked()}
-  catch(x){err.textContent=x&&x.name==="OperationError"?"Passwort falsch.":"Entsperren fehlgeschlagen ("+(x&&x.name||"Fehler")+").";$("#lockBtn").textContent="Entsperren"}
+  catch(x){err.textContent=x&&x.name==="OperationError"?"PIN falsch.":"Entsperren fehlgeschlagen ("+(x&&x.name||"Fehler")+").";$("#lockBtn").textContent="Entsperren"}
   finally{$("#lockBtn").disabled=false}});
+$("#lockPass").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,4);if(lockMode==="unlock"&&e.target.value.length===4)$("#lockForm").requestSubmit()});
+$("#lockPass2").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,4)});
 function unlocked(){$("#lock").hidden=true;applyEditMode();try{render(false)}catch(e){console.error(e)}if(!map){try{startMap()}catch(e){console.error(e);toast("Karte konnte nicht starten.")}}else render(true)}
 
 /* Daten zusammenführen: zentrale Liste vs. lokale (evtl. unveröffentlichte) Änderungen */
@@ -573,11 +575,11 @@ $("#formSettings").addEventListener("submit",e=>{e.preventDefault();
     if(repo!==state.gh.repo||token!==state.gh.token){state.gh={repo,token};saveLocal()}}
   $("#dlgSettings").close();render()});
 $("#s_chpass").addEventListener("click",async()=>{const a=$("#s_np1").value,b=$("#s_np2").value;
-  if(a.length<10){toast("Mindestens 10 Zeichen.");return}if(a!==b){toast("Passwörter stimmen nicht überein.");return}
+  if(!/^\d{4}$/.test(a)){toast("Bitte genau 4 Ziffern.");return}if(a!==b){toast("PINs stimmen nicht überein.");return}
   state.salt=crypto.getRandomValues(new Uint8Array(16));state.iter=ITER;state.key=await deriveKey(a,state.salt,state.iter);
-  if(store.get(K_KEY))await rememberKey();markChanged();$("#s_np1").value="";$("#s_np2").value="";toast("Passwort geändert – jetzt verschlüsselt exportieren und hochladen.")});
+  if(store.get(K_KEY))await rememberKey();markChanged();$("#s_np1").value="";$("#s_np2").value="";toast("PIN geändert – jetzt veröffentlichen.")});
 $("#s_reload").addEventListener("click",async()=>{const env=await fetchCentral();if(!env){toast("Keine "+CENTRAL+" auf dem Server gefunden.");return}
-  if(env.salt!==b64(state.salt)){toast("Das Passwort wurde geändert – bitte neu entsperren.");store.del(K_KEY);setTimeout(()=>location.reload(),1200);return}
+  if(env.salt!==b64(state.salt)){toast("Die PIN wurde geändert – bitte neu entsperren.");store.del(K_KEY);setTimeout(()=>location.reload(),1200);return}
   try{const c=await openObj(env,state.key);if(state.meta.dirty&&state.settings.edit){state.conflict=c;renderBanners();toast("Lokale Änderungen vorhanden – Hinweis oben beachten.")}
     else{useData(c);state.meta.base=state.meta.updated;state.meta.dirty=false;await saveLocal();render(true);toast(state.stations.length+" Tankpunkte geladen")}}
   catch(x){toast("Zentrale Liste konnte nicht entschlüsselt werden.")}
@@ -664,7 +666,7 @@ setInterval(()=>{if(state.key)render(false)},60000);
   if(!lockEnv){showLock("setup");return}
   const k=await recallKey(lockEnv.salt);
   if(k){try{await openObj(lockEnv,k);state.key=k;state.salt=unb64(lockEnv.salt);state.iter=lockEnv.iter||ITER;await loadData();unlocked();return}catch(e){store.del(K_KEY)}}
-  showLock("unlock",central&&localEnv&&localEnv.salt!==central.salt?"Das Passwort wurde geändert. Bitte das neue Passwort eingeben.":null);
+  showLock("unlock",central&&localEnv&&localEnv.salt!==central.salt?"Die PIN wurde geändert. Bitte die neue PIN eingeben.":null);
 })();
 </script>
 </body>
