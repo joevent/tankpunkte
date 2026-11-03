@@ -147,6 +147,27 @@ th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted
 tr:last-child td{border-bottom:0}
 td .nm{font-weight:600}
 .empty{padding:18px;text-align:center;color:var(--muted)}
+#sideDyn{display:flex;flex-direction:column;gap:14px;min-width:0}
+.route{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.route summary{list-style:none;cursor:pointer;padding:11px 14px;display:flex;align-items:center;gap:10px}
+.route summary::-webkit-details-marker{display:none}
+.route summary::after{content:"▾";margin-left:auto;color:var(--muted)}
+.route[open] summary::after{content:"▴"}
+.route summary .rt{font-family:var(--f-display);font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.route-body{padding:0 14px 14px;display:flex;flex-direction:column;gap:10px}
+.wp{display:grid;grid-template-columns:26px minmax(0,1fr) auto auto;gap:6px;align-items:center}
+.wp-l{width:24px;height:24px;border-radius:50%;background:var(--head);color:var(--head-fg);display:grid;place-items:center;font:600 12px/1 var(--f-mono)}
+.wp input{padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);min-width:0;width:100%}
+.wp input.bad{border-color:var(--warn)}
+.chk2{display:inline-flex;gap:6px;align-items:center;font-size:14px}
+.legs{width:100%;border-collapse:collapse;font-size:14px;min-width:0}
+.legs td{padding:5px 4px;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.legs td:first-child{font-family:var(--f-body);white-space:normal}
+.legs tr.tot td{border-bottom:0;font-weight:600}
+.legs td.r{text-align:right}
+.rmsg{font-size:13px;color:var(--warn)}
+.wpm{width:22px;height:22px;border-radius:50%;background:#1e252c;color:#fff;border:2px solid #fff;display:grid;place-items:center;font:600 11px/1 var(--f-mono);box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.leglbl{background:#1e252c;color:#fff;font:500 11px/1 var(--f-mono);padding:3px 5px;border-radius:3px;white-space:nowrap;transform:translate(-50%,-50%);display:inline-block;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .hint{font-size:13px;color:var(--muted);margin-top:12px;max-width:72ch}
 
 dialog{border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg);padding:0;width:min(640px,calc(100vw - 24px));max-height:calc(100dvh - 24px)}
@@ -232,7 +253,18 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
         <div class="legend"><span><i class="dot-n"></i>Nacht</span><span><i class="dot-d"></i>nur Tag</span></div>
         <div class="placing-hint" id="placingHint" hidden>Auf die Karte tippen, um die Position zu setzen</div>
       </div>
-      <aside class="side wrap" id="side"></aside>
+      <aside class="side wrap" id="side">
+        <details class="route" id="routeBox">
+          <summary><span class="rt">Strecke</span><span class="mono muted" id="routeSum">Luftlinie A → B → C</span></summary>
+          <div class="route-body">
+            <div id="wpList"></div>
+            <div class="row-actions"><button type="button" class="btn small" id="wpAdd">+ Punkt</button><label class="chk2"><input type="checkbox" id="wpLoop"> zurück zum Start</label></div>
+            <div class="row-actions"><button type="button" class="btn small primary" id="routeGo">Linie zeichnen</button><button type="button" class="btn small" id="routeClear">Löschen</button></div>
+            <div id="routeOut"></div>
+          </div>
+        </details>
+        <div id="sideDyn"></div>
+      </aside>
     </section>
 
     <section class="view wrap" id="view-katalog" hidden>
@@ -447,11 +479,19 @@ const MapV={
   setUser(p){if(!p)return;if(!this.u)this.u=L.marker([p.lat,p.lon],{zIndexOffset:1000,interactive:false,icon:L.divIcon({className:"",html:'<div class="me"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(this.m);else this.u.setLatLng([p.lat,p.lon])},
   focus(lat,lon,z){this.m.setView([lat,lon],Math.max(this.m.getZoom(),z||10))},
   fit(pts){if(!pts.length)return;if(pts.length===1)return this.focus(pts[0][0],pts[0][1],10);this.m.fitBounds(pts,{padding:[40,40],maxZoom:11})},
+  setRoute(pts){if(this.rt){this.m.removeLayer(this.rt);this.rt=null}if(!pts||pts.length<2)return;
+    const g=L.layerGroup(),ll=pts.map(p=>[p.lat,p.lon]);
+    L.polyline(ll,{color:"#ffffff",weight:8,opacity:.85,interactive:false}).addTo(g);
+    L.polyline(ll,{color:"#d3121f",weight:4,interactive:false}).addTo(g);
+    for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],nm=distKm(a,b)/1.852;
+      L.marker([(a.lat+b.lat)/2,(a.lon+b.lon)/2],{interactive:false,icon:L.divIcon({className:"",html:`<span class="leglbl">${crs(bearing(a,b))} · ${fmt(nm,nm<10?1:0)} NM</span>`,iconSize:[0,0]})}).addTo(g)}
+    pts.forEach((p,i)=>{if(i===pts.length-1&&p.loop)return;L.marker([p.lat,p.lon],{zIndexOffset:800,icon:L.divIcon({className:"",html:`<div class="wpm">${p.l}</div>`,iconSize:[22,22],iconAnchor:[11,11]})}).bindTooltip(esc(p.label),{direction:"top",offset:[0,-10]}).addTo(g)});
+    this.rt=g.addTo(this.m)},
   resize(){this.m.invalidateSize()}
 };
 function startMap(){if(!window.L){toast("Kartenbibliothek nicht geladen – Liste funktioniert trotzdem.");return}
   map=MapV;map.init($("#map"));map.onClick=(lat,lon)=>{if(!state.placing)return;state.placing=false;$("#placingHint").hidden=true;setPos({lat,lon,src:"manuell"},true)};
-  updateAero();render(true)}
+  updateAero();if(state.route.pts)map.setRoute(state.route.pts);render(!state.route.pts);if(state.route.pts)map.fit(state.route.pts.map(p=>[p.lat,p.lon]))}
 function updateAero(){const has=!!state.aeroKey;$("#btnAero").hidden=!has;$("#btnAero").setAttribute("aria-pressed",String(has&&state.aeroOn));if(map)map.setAero(state.aeroKey,state.aeroOn)}
 $("#btnAero").addEventListener("click",()=>{state.aeroOn=!state.aeroOn;state.settings.aeroOn=state.aeroOn;store.set(K_SET,state.settings);updateAero()});
 
@@ -484,7 +524,7 @@ function render(fit){
   const top=state.sel?list.find(x=>x.s.id===state.sel):list[0];
   if(map){map.setStations(list.map(x=>x.s),top&&top.s.id,id=>{state.sel=id;render();const s=byId(id);if(s)map.focus(s.lat,s.lon)});map.setUser(state.pos);
     if(fit){const pts=[];if(state.pos){pts.push([state.pos.lat,state.pos.lon]);if(list[0])pts.push([list[0].s.lat,list[0].s.lon])}else list.forEach(x=>pts.push([x.s.lat,x.s.lon]));map.fit(pts)}}
-  renderSide(list,top,sun);renderCatalog();renderBanners();
+  renderSide(list,top,sun);renderCatalog();renderBanners();renderRoute();
 }
 function renderBanners(){let h="";const ed=state.settings.edit;
   if(state.isSample)h+=`<div class="banner info wrap"><span><b>Beispieldaten.</b> Die fünf Einträge sind erfunden. Importiere eure Liste im Katalog.</span></div>`;
@@ -509,7 +549,7 @@ function renderSide(list,top){
     </article>`}
   if(list.length)h+=`<div><div class="eyebrow" style="margin-bottom:6px">${list.length} Tankpunkte${state.pos?" · nach Distanz":""}</div><div class="list">`+
     list.slice(0,50).map(x=>`<button class="item" data-act="select" data-id="${x.s.id}" aria-current="${top&&x.s.id===top.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${x.km!=null?fmt(x.nm,x.nm<10?1:0)+" NM":""}</span><span class="sub">${esc([x.s.icao,x.s.hours].filter(Boolean).join(" · "))}</span><span class="sub dist">${x.crs!=null?crs(x.crs):""}</span></button>`).join("")+`</div></div>`;
-  $("#side").innerHTML=h}
+  $("#sideDyn").innerHTML=h}
 function renderCatalog(){const q=state.q.trim().toLowerCase(),ed=state.settings.edit;
   const rows=state.stations.filter(s=>!q||[s.name,s.icao,s.address,s.notes,s.note,s.hours,s.kind].join(" ").toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name,"de"));
   $("#catBody").innerHTML=rows.length?rows.map(s=>`<tr>
@@ -647,6 +687,65 @@ const toRow=s=>[s.name,s.icao,s.kind,String(s.lat).replace(".",","),String(s.lon
 $("#btnExportEnc").addEventListener("click",exportEnc);
 $("#btnExportCsv").addEventListener("click",()=>download("tankpunkte-"+new Date().toISOString().slice(0,10)+".csv","﻿"+[CSV_HEAD,...state.stations.map(toRow)].map(r=>r.map(csvCell).join(";")).join("\r\n"),"text/csv"));
 $("#btnTemplate").addEventListener("click",()=>download("tankpunkte-vorlage.csv","﻿"+[CSV_HEAD,toRow(normalize(SAMPLES[0]))].map(r=>r.map(csvCell).join(";")).join("\r\n"),"text/csv"));
+
+/* ---------- Strecke (Luftlinie) ---------- */
+const RK="tp.route.v1",GK="tp.geo.v1",LET="ABCDEFGH";
+state.route=Object.assign({wps:["","",""],loop:false,pts:null,msg:""},store.get(RK)||{});
+const saveRoute=()=>store.set(RK,{wps:state.route.wps,loop:state.route.loop,pts:state.route.pts});
+function renderWps(){$("#wpList").innerHTML=state.route.wps.map((v,i)=>`<div class="wp"><span class="wp-l">${LET[i]}</span><input id="wp${i}" data-i="${i}" value="${esc(v)}" placeholder="${i===0?"z. B. Dortmund oder EDLW":"Ort, ICAO, Tankpunkt, 51.5 7.6"}" autocomplete="off" enterkeyhint="go"><button type="button" class="btn small" data-wpgps="${i}" aria-label="Aktuellen Standort einsetzen" title="Aktueller Standort">◎</button><button type="button" class="btn small" data-wpdel="${i}" aria-label="Punkt entfernen" ${state.route.wps.length<=2?"disabled":""}>✕</button></div>`).join("");
+  $("#wpLoop").checked=!!state.route.loop;$("#wpAdd").disabled=state.route.wps.length>=LET.length}
+$("#wpList").addEventListener("input",e=>{const i=e.target.dataset.i;if(i==null)return;state.route.wps[+i]=e.target.value;e.target.classList.remove("bad");saveRoute()});
+$("#wpList").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.i!=null){e.preventDefault();drawRoute()}});
+$("#wpList").addEventListener("click",e=>{const g=e.target.closest("[data-wpgps]"),d=e.target.closest("[data-wpdel]");
+  if(g){state.route.wps[+g.dataset.wpgps]="Standort";renderWps();if(!state.pos)locate()}
+  if(d&&state.route.wps.length>2){state.route.wps.splice(+d.dataset.wpdel,1);renderWps();saveRoute()}});
+$("#wpAdd").addEventListener("click",()=>{if(state.route.wps.length<LET.length){state.route.wps.push("");renderWps();saveRoute();$("#wp"+(state.route.wps.length-1)).focus()}});
+$("#wpLoop").addEventListener("change",e=>{state.route.loop=e.target.checked;saveRoute();if(state.route.pts)drawRoute()});
+$("#routeClear").addEventListener("click",()=>{state.route.wps=["","",""];state.route.pts=null;state.route.msg="";state.route.loop=false;saveRoute();renderWps();if(map)map.setRoute(null);renderRoute()});
+$("#routeGo").addEventListener("click",drawRoute);
+
+let geoLast=0;
+async function geocode(q){const key=q.toLowerCase();const cache=store.get(GK)||{};if(cache[key])return cache[key];
+  const wait=1100-(Date.now()-geoLast);if(wait>0)await new Promise(r=>setTimeout(r,wait));geoLast=Date.now();
+  const u="https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=de&countrycodes=de,nl,be,lu,fr,ch,at,cz,pl,dk&q="+encodeURIComponent(q);
+  const r=await fetch(u,{headers:{"Accept":"application/json"}});if(!r.ok)throw new Error("Ortssuche nicht erreichbar");
+  const j=await r.json();if(!j.length)return null;
+  const res={lat:+j[0].lat,lon:+j[0].lon,label:j[0].name||j[0].display_name.split(",")[0]};cache[key]=res;
+  const ks=Object.keys(cache);if(ks.length>200)delete cache[ks[0]];store.set(GK,cache);return res}
+async function resolveWp(q){q=q.trim();if(!q)return null;
+  if(/^(standort|hier|gps|position)$/i.test(q)){if(!state.pos)throw new Error("Kein Standort – erst ◎ Standort antippen");return {lat:state.pos.lat,lon:state.pos.lon,label:"Standort"}}
+  let m=q.match(/^(-?\d{1,2}(?:[.,]\d+)?)\s*[;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)$/)||q.match(/^(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)$/);
+  if(m){const lat=parseFloat(m[1].replace(",",".")),lon=parseFloat(m[2].replace(",","."));if(Math.abs(lat)<=90&&Math.abs(lon)<=180)return {lat,lon,label:fmtCoord({lat,lon})}}
+  const ql=q.toLowerCase();
+  const st=state.stations.find(s=>s.icao&&s.icao.toLowerCase()===ql)||state.stations.find(s=>s.name.toLowerCase()===ql)||(ql.length>=4?state.stations.find(s=>s.name.toLowerCase().includes(ql)):null);
+  if(st)return {lat:st.lat,lon:st.lon,label:st.name};
+  return await geocode(/^[a-z]{4}$/i.test(q)?q+" Flugplatz":q)||(/^[a-z]{4}$/i.test(q)?await geocode(q):null)}
+async function drawRoute(){const btn=$("#routeGo");btn.disabled=true;btn.textContent="Suche Orte …";state.route.msg="";
+  const pts=[];const bad=[];
+  try{for(let i=0;i<state.route.wps.length;i++){const q=state.route.wps[i];if(!q.trim())continue;
+      try{const r=await resolveWp(q);if(r)pts.push(Object.assign(r,{l:LET[i]}));else bad.push(LET[i]+": „"+q+"“ nicht gefunden")}
+      catch(x){bad.push(LET[i]+": "+x.message)}
+      if(!pts.length||pts[pts.length-1].l!==LET[i]){const el=$("#wp"+i);if(el)el.classList.add("bad")}}
+    if(pts.length<2){state.route.pts=null;state.route.msg=bad.length?bad.join(" · "):"Mindestens zwei Punkte eintragen.";}
+    else{if(state.route.loop)pts.push(Object.assign({},pts[0],{loop:true}));state.route.pts=pts;state.route.msg=bad.join(" · ");
+      if(map){map.setRoute(pts);map.fit(pts.map(p=>[p.lat,p.lon]))}}}
+  finally{btn.disabled=false;btn.textContent="Linie zeichnen";saveRoute();renderRoute()}}
+function offRoute(s,pts){let best=Infinity,leg=0;for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],c=Math.cos(a.lat*R);
+    const bx=(b.lon-a.lon)*c*111.32,by=(b.lat-a.lat)*110.574,px=(s.lon-a.lon)*c*111.32,py=(s.lat-a.lat)*110.574;
+    const L2=bx*bx+by*by,t=L2?Math.max(0,Math.min(1,(px*bx+py*by)/L2)):0,d=Math.hypot(px-t*bx,py-t*by);if(d<best){best=d;leg=i}}
+  return {nm:best/1.852,leg}}
+function renderRoute(){const pts=state.route.pts,out=$("#routeOut");if(!out)return;let h="";
+  if(state.route.msg)h+=`<div class="rmsg">${esc(state.route.msg)}</div>`;
+  if(pts&&pts.length>1){let tot=0;const rows=[];for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],km=distKm(a,b);tot+=km;
+      rows.push(`<tr><td>${a.l} → ${b.l}<div class="muted" style="font-size:12px">${esc(a.label)} → ${esc(b.label)}</div></td><td class="r">${crs(bearing(a,b))}</td><td class="r">${fmt(km/1.852,1)} NM</td></tr>`)}
+    h+=`<div style="overflow-x:auto"><table class="legs"><tbody>${rows.join("")}<tr class="tot"><td>Gesamt</td><td></td><td class="r">${fmt(tot/1.852,1)} NM</td></tr></tbody></table></div>`;
+    $("#routeSum").textContent=pts.map(p=>p.l).join("→")+" · "+fmt(tot/1.852,0)+" NM";
+    const near=filtered().map(s=>Object.assign({s},offRoute(s,pts))).filter(x=>x.nm<=10).sort((a,b)=>a.leg-b.leg||a.nm-b.nm).slice(0,10);
+    const lbl={tag:"Tag",nacht:"Nacht",alle:"Tag & Nacht"}[state.time];
+    h+=`<div class="eyebrow">Tankpunkte an der Strecke · ≤ 10 NM · ${lbl}</div>`+(near.length?`<div class="list">${near.map(x=>`<button class="item" data-act="select" data-id="${x.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${fmt(x.nm,1)} NM</span><span class="sub">Abschnitt ${pts[x.leg].l} → ${pts[x.leg+1].l}${x.s.hours?" · "+esc(x.s.hours):""}</span><span></span></button>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Keine passenden Tankpunkte im Korridor.</div>`);
+  } else $("#routeSum").textContent="Luftlinie A → B → C";
+  out.innerHTML=h}
+renderWps();if(state.route.pts)$("#routeBox").open=true;
 
 /* ---------- UI ---------- */
 $("#segTime").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;state.time=b.dataset.v;state.sel=null;persistUi();render(true)});
