@@ -117,8 +117,8 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
   #view-katalog{overflow:auto}
 }
 .leaflet-container{font:inherit;background:var(--surface-2)}
-:root[data-theme="dark"] .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.92) saturate(.55)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.92) saturate(.55)}}
+:root[data-theme="dark"] .base-street .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.92) saturate(.55)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .base-street .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.92) saturate(.55)}}
 
 .pin{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:600 11px/1 var(--f-mono);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
 .pin.n{background:#2b4a8e}.pin.d{background:#a46400}
@@ -384,7 +384,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 16:50 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 17:00 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -543,10 +543,10 @@ const MapV={
       {pane:"aero",interactive:true,bubblingMouseEvents:true,style:{color:"#c2185b",weight:2,dashArray:"7 5",opacity:.9,fillColor:"#c2185b",fillOpacity:.07},attribution:"CTR/Flugplätze © openAIP (nicht für die Flugplanung)",
        onEachFeature:(f,l)=>l.bindPopup(()=>ctrPopup(f.properties.ref),{autoPanPadding:[20,20]})}).addTo(this.m)},
   setBorders(geo,on){if(this.bord){this.m.removeLayer(this.bord);this.bord=null}if(!on||!geo)return;
-    const g=L.layerGroup();
-    L.geoJSON(geo.coast,{pane:"border",interactive:false,style:{color:"#4a5866",weight:1,opacity:.6}}).addTo(g);
-    L.geoJSON(geo.other,{pane:"border",interactive:false,style:{color:"#3a4652",weight:1.5,opacity:.85,dashArray:"6 3 1 3"}}).addTo(g);
-    L.geoJSON(geo.de,{pane:"border",interactive:false,style:{color:"#1d2329",weight:2.6,opacity:.95,dashArray:"8 3 2 3"}}).addTo(g);
+    const g=L.layerGroup(),dk=isDark(),c1=dk?"#c9d2db":"#1d2329",c2=dk?"#9aa6b2":"#3a4652";
+    L.geoJSON(geo.coast,{pane:"border",interactive:false,style:{color:c2,weight:1,opacity:.6}}).addTo(g);
+    L.geoJSON(geo.other,{pane:"border",interactive:false,style:{color:c2,weight:1.5,opacity:.9,dashArray:"6 3 1 3"}}).addTo(g);
+    L.geoJSON(geo.de,{pane:"border",interactive:false,style:{color:c1,weight:2.6,opacity:.95,dashArray:"8 3 2 3"}}).addTo(g);
     this.bord=g.addTo(this.m)},
   setApts(list,on){if(this.apt){this.m.removeLayer(this.apt);this.apt=null}if(!on||!list||!list.length)return;
     const g=L.layerGroup();list.forEach(a=>{L.marker([a.lat,a.lon],{pane:"apt",icon:L.divIcon({className:"",html:`<div class="apt${a.mil?" mil":""}"><i></i><span>${esc(a.icao)}</span></div>`,iconSize:[0,0]})})
@@ -584,7 +584,7 @@ const MapV={
       wm.bindPopup(()=>wpPopup(p),{offset:[0,-6],closeButton:true,autoPanPadding:[20,20]});
       wm.on("click",()=>{const st=wpStation(p);if(st){state.sel=st.id;render()}});wm.addTo(g)});
     this.rt=g.addTo(this.m)},
-  setBase(id,op){if(this.tl){this.m.removeLayer(this.tl);this.tl=null}
+  setBase(id,op){if(this.tl){this.m.removeLayer(this.tl);this.tl=null}const ct=this.m.getContainer();["street","relief","topo","off"].forEach(k=>ct.classList.toggle("base-"+k,k===id));
     const esri=s=>({u:"https://server.arcgisonline.com/ArcGIS/rest/services/"+s+"/MapServer/tile/{z}/{y}/{x}",o:{maxZoom:19,attribution:"© Esri"}});
     const B={street:location.protocol==="file:"?[esri("World_Topo_Map"),{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",o:{maxZoom:19,attribution:"© OpenStreetMap"}}]
                     :[{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",o:{maxZoom:19,attribution:"© OpenStreetMap"}},esri("World_Topo_Map")],
@@ -646,6 +646,8 @@ async function updateApts(){const has=!!state.aeroKey;$("#aptChk").disabled=!has
 $("#aptChk").addEventListener("change",e=>{state.aptOn=e.target.checked;state.settings.aptOn=state.aptOn;store.set(K_SET,state.settings);updateApts()});
 /* Staatsgrenzen: Natural Earth 1:50 Mio. über world-atlas, nur Europa-Ausschnitt */
 let bordGeo=null,bordLoading=null;
+const isDark=()=>{const t=document.documentElement.getAttribute("data-theme");return t?t==="dark":matchMedia("(prefers-color-scheme: dark)").matches};
+try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>updateBorders())}catch(e){}
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("Skript nicht ladbar"));document.head.appendChild(s)})}
 async function loadBorders(){if(bordGeo)return bordGeo;if(bordLoading)return bordLoading;
   bordLoading=(async()=>{if(!window.topojson)await loadScript("https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js");
@@ -833,7 +835,7 @@ $("#s_demo").addEventListener("click",async function(){if(!state.isSample&&this.
 $("#s_lock").addEventListener("click",()=>{store.del(K_KEY);location.reload()});
 $("#s_reset").addEventListener("click",function(){if(this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Wirklich zurücksetzen?";return}
   store.del(K_LOCAL);store.del(K_KEY);store.del(K_SET);location.reload()});
-function applyTheme(){const t=state.settings.theme;if(t)document.documentElement.setAttribute("data-theme",t);else document.documentElement.removeAttribute("data-theme")}
+function applyTheme(){const t=state.settings.theme;if(t)document.documentElement.setAttribute("data-theme",t);else document.documentElement.removeAttribute("data-theme");try{if(map)updateBorders()}catch(e){}}
 
 /* ---------- Import / Export ---------- */
 function parseCSV(text){text=text.replace(/^﻿/,"");const first=text.split(/\r?\n/)[0]||"";const delim=(first.split(";").length>=first.split(",").length)?";":",";
