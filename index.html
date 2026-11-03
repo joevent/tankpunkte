@@ -334,6 +334,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
           <button class="btn" id="btnExportEnc" type="button">Verschlüsselt exportieren</button>
           <button class="btn" id="btnExportCsv" type="button">CSV</button>
           <button class="btn" id="btnTemplate" type="button">CSV-Vorlage</button>
+          <button class="btn" id="btnCtrApts" type="button">Flughäfen mit CTR übernehmen</button>
         </span>
         <input id="fileImport" type="file" accept=".csv,.json,.txt,text/csv,application/json" hidden>
       </div>
@@ -391,7 +392,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 17:55 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 18:05 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -619,7 +620,7 @@ async function loadCtrs(force){if(!state.aeroKey)return null;
     ctrAll=items.filter(a=>a.type===4&&a.geometry).map(a=>({name:a.name,cls:a.icaoClass!=null&&CLS[a.icaoClass]?"Klasse "+CLS[a.icaoClass]:"CTR",lim:limTxt(a.lowerLimit)+" – "+limTxt(a.upperLimit),geometry:a.geometry}));
     store.set(CK,{t:Date.now(),k:state.aeroKey.slice(-6),items:ctrAll});return ctrAll})();
   try{return await ctrLoading}finally{ctrLoading=null}}
-const AK="tp.apt.v2";let aptAll=null,aptLoading=null;
+const AK="tp.apt.v3";let aptAll=null,aptLoading=null;
 async function oaipPages(kind){let items=[],page=1,pages=1;
   do{const u="https://api.core.openaip.net/api/"+kind+"?country=DE&limit=500&page="+page+(kind==="airspaces"?"&type=4":"")+"&apiKey="+encodeURIComponent(state.aeroKey);
     let r;try{r=await fetch(u)}catch(x){throw new Error("openAIP nicht erreichbar")}
@@ -634,7 +635,8 @@ async function loadApts(){if(!state.aeroKey)return null;if(aptAll)return aptAll;
     aptAll=items.filter(a=>a.icaoCode&&/^[A-Z]{4}$/.test(a.icaoCode)&&a.geometry&&a.geometry.coordinates).map(a=>({icao:a.icaoCode,name:a.name||"",lat:a.geometry.coordinates[1],lon:a.geometry.coordinates[0],
       elev:a.elevation?elevTxt(a.elevation):"",mil:a.type===5,
       rwy:(a.runways||[]).filter(r=>r.designator).slice(0,6).map(r=>({d:r.designator,len:r.dimension&&r.dimension.length?unitTxt(r.dimension.length):""})),
-      frq:(a.frequencies||[]).filter(f=>f.value).slice(0,6).map(f=>({v:String(f.value),n:f.name||""}))}));
+      frq:(a.frequencies||[]).filter(f=>f.value).slice(0,6).map(f=>({v:String(f.value),n:f.name||""})),
+      fuel:a.services&&Array.isArray(a.services.fuelTypes)?a.services.fuelTypes:null}));
     try{store.set(AK,{t:Date.now(),k:state.aeroKey.slice(-6),items:aptAll})}catch(x){}return aptAll})();
   try{return await aptLoading}finally{aptLoading=null}}
 function aptPopup(a){const ctr=(ctrAll||[]).find(c=>routeHitsGeom([{lat:a.lat,lon:a.lon}],c.geometry));
@@ -642,9 +644,24 @@ function aptPopup(a){const ctr=(ctrAll||[]).find(c=>routeHitsGeom([{lat:a.lat,lo
   for(const r of a.rwy){const n=num(r.d),opp=isFinite(n)?String(((n+17)%36)+1).padStart(2,"0")+suf(r.d):null;
     const pair=rw.find(x=>!x.d.includes("/")&&opp&&x.d===opp);if(pair)pair.d=pair.d+"/"+r.d;else if(!rw.some(x=>x.d.split("/").includes(r.d)))rw.push(Object.assign({},r))}
   return `<div class="pop"><span class="eyebrow">Flugplatz</span><b><span class="mono">${esc(a.icao)}</span> · ${esc(a.name)}</b>${a.elev?`<div class="muted">Elevation ${esc(a.elev)}</div>`:""}${ctr?`<div>In <b>${esc(ctr.name)}</b> (${esc(ctr.lim)})</div>`:""}
+    <div>Kraftstoff: ${a.fuel&&a.fuel.length?`<b>${esc(fuelTxt(a.fuel))}</b> <span class="muted">(openAIP)</span>`:`<span class="muted">keine Angabe in openAIP</span>`}</div>
     ${rw.length?`<table>${rw.map(r=>`<tr><td>RWY ${esc(r.d)}</td><td>${esc(r.len)}</td></tr>`).join("")}</table>`:""}
     ${a.frq.length?`<table>${a.frq.map(f=>`<tr><td>${esc(f.v)}</td><td>${esc(f.n)}</td></tr>`).join("")}</table>`:""}
-    <div class="row-actions"><button class="btn small primary" data-act="addapt" data-icao="${esc(a.icao)}">Zur Strecke</button><a class="btn small" href="${routeUrl(a)}" target="_blank" rel="noopener">Google Maps</a></div></div>`}
+    <div class="row-actions"><button class="btn small primary" data-act="addapt" data-icao="${esc(a.icao)}">Zur Strecke</button><a class="btn small" href="${routeUrl(a)}" target="_blank" rel="noopener">Google Maps</a>${state.settings.edit?(state.stations.some(s=>s.icao===a.icao)?`<span class="muted" style="font-size:13px">Schon im Katalog</span>`:`<button class="btn small" data-act="takeapt" data-icao="${esc(a.icao)}">Als Tankpunkt übernehmen</button>`):""}</div></div>`}
+const FUEL=["Super Plus","AVGAS","Jet A","Jet A-1","Jet B","Diesel","AVGAS UL91"];
+const fuelTxt=f=>f.map(i=>FUEL[i]||("Typ "+i)).join(", ");
+const titleCase=s=>s.toLowerCase().replace(/(^|[\s/\-])([a-zäöü])/g,(m,a,b)=>a+b.toUpperCase()).replace(/Ue/g,"Ü").replace(/Oe/g,"Ö").replace(/Ae/g,"Ä");
+function aptToStation(a,ctr){const jet=a.fuel&&(a.fuel.includes(3)||a.fuel.includes(2));
+  return normalize({name:a.icao+" "+titleCase(a.name),icao:a.icao,kind:"Flugplatz",lat:a.lat,lon:a.lon,fuel:a.fuel&&a.fuel.length?fuelTxt(a.fuel):"Jet A-1 (prüfen)",day:true,night:false,
+    hours:"Öffnungs- und Tankzeiten laut AIP AD 2.3/2.4 prüfen",note:(ctr?ctr.name+". ":"")+(jet?"Jet A-1 laut openAIP.":"Kraftstoff in openAIP nicht angegeben – im AIP prüfen."),notes:"Aus openAIP übernommen"})}
+async function takeCtrAirports(btn){if(!state.aeroKey){toast("Erst den openAIP-Schlüssel unter ⚙ eintragen.");return}
+  btn.disabled=true;const old=btn.textContent;btn.textContent="Lade openAIP …";
+  try{const [apts,ctrs]=await Promise.all([loadApts(),loadCtrs()]);if(state.isSample){state.stations=[];state.isSample=false}
+    let n=0;for(const a of apts){const ctr=ctrs.find(c=>routeHitsGeom([{lat:a.lat,lon:a.lon}],c.geometry));if(!ctr)continue;
+      if(a.fuel&&a.fuel.length&&!a.fuel.includes(3)&&!a.fuel.includes(2))continue;
+      if(state.stations.some(s=>s.icao===a.icao))continue;state.stations.push(aptToStation(a,ctr));n++}
+    markChanged();render(true);toast(n+" Flughäfen mit CTR übernommen – bitte 24-h-Status und Zeiten prüfen")}
+  catch(x){toast("Übernahme fehlgeschlagen: "+x.message)}finally{btn.disabled=false;btn.textContent=old}}
 function ctrPopup(c){const apts=(aptAll||[]).filter(a=>routeHitsGeom([{lat:a.lat,lon:a.lon}],c.geometry));
   return `<div class="pop"><span class="eyebrow">Kontrollzone · ${esc(c.cls)}</span><b>${esc(c.name)}</b><div class="mono">${esc(c.lim)}</div>${apts.length?`<div>Flugplatz: ${apts.map(a=>`<b class="mono">${esc(a.icao)}</b> ${esc(a.name)}`).join(", ")}</div>`:""}</div>`}
 async function updateApts(){const has=!!state.aeroKey;$("#aptChk").disabled=!has;$("#aptChk").checked=has&&state.aptOn;
@@ -788,6 +805,8 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]
     case "exportEnc":exportEnc();break;
     case "rmwp":{if(map&&map.m)map.m.closePopup();const i=LET.indexOf(b.dataset.l);if(i>=0&&i<state.route.wps.length){state.route.wps.splice(i,1);while(state.route.wps.length<2)state.route.wps.push("");renderWps();saveRoute();
       if(state.route.wps.filter(x=>x.trim()).length>=2)drawRoute();else{state.route.pts=null;saveRoute();if(map){map.setRoute(null);map.setCtrs(null)}renderRoute()}toast("Wegpunkt entfernt")}}break;
+    case "takeapt":{if(map&&map.m)map.m.closePopup();const ap=(aptAll||[]).find(a=>a.icao===b.dataset.icao);if(ap){const ctr=(ctrAll||[]).find(c=>routeHitsGeom([{lat:ap.lat,lon:ap.lon}],c.geometry));
+      if(state.isSample){state.stations=[];state.isSample=false}const st=aptToStation(ap,ctr);state.stations.push(st);markChanged();render();openEdit(st);toast("Übernommen – Zeiten und 24 h eintragen, dann speichern")}}break;
     case "addapt":{if(map&&map.m)map.m.closePopup();const ap=(aptAll||[]).find(a=>a.icao===b.dataset.icao);if(ap)addToRoute({name:ap.icao,lat:ap.lat,lon:ap.lon});}break;
     case "addroute":if(s){if(map&&map.m)map.m.closePopup();addToRoute(s)}break;
     case "details":if(s){if(map&&map.m)map.m.closePopup();state.sel=id;render();const d=$("#sideTop");if(d&&innerWidth<920)d.scrollIntoView({behavior:"smooth",block:"start"})}break;
@@ -908,6 +927,7 @@ async function publish(btn){if(!ghReady()){toast("Erst unter ⚙ GitHub verbinde
     toast("Veröffentlicht. Die Crew sieht die Liste nach 1–10 Minuten.")}
   catch(x){toast("Veröffentlichen fehlgeschlagen: "+x.message)}
   finally{if(btn){btn.disabled=false;btn.textContent=old}}}
+$("#btnCtrApts").addEventListener("click",e=>takeCtrAirports(e.currentTarget));
 $("#btnPublish").addEventListener("click",e=>publish(e.currentTarget));
 const csvCell=v=>{v=String(v??"");return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
 const CSV_HEAD=["Name","ICAO","Art","Lat","Lon","Adresse","Kraftstoff","Tag","24h","Zeiten","Hinweis","Telefon","Notizen","Geprüft"];
