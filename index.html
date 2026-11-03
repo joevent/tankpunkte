@@ -104,7 +104,7 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 :root[data-theme="dark"] .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.92) saturate(.55)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.92) saturate(.55)}}
 
-.pin{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:600 12px/1 var(--f-mono);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.pin{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:600 11px/1 var(--f-mono);color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
 .pin.n{background:#2b4a8e}.pin.d{background:#a46400}
 .pin.sel{background:#d3121f;transform:scale(1.2)}
 .dot-n,.dot-d{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
@@ -243,8 +243,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <span class="lbl">Tankung</span>
       <div class="seg" id="segTime">
         <button type="button" data-v="tag">Tag</button>
-        <button type="button" data-v="nacht">Nacht</button>
-        <button type="button" data-v="alle">Alle</button>
+        <button type="button" data-v="h24">24 h</button>
       </div>
     </div>
     <nav class="tabs wrap" role="tablist">
@@ -259,7 +258,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <div class="mapbox">
         <div id="map" aria-label="Karte"></div>
         <div class="maptools"><button class="btn small" id="btnAero" type="button" aria-pressed="false" hidden>Lufträume</button></div>
-        <div class="legend"><span><i class="dot-n"></i>Nacht</span><span><i class="dot-d"></i>nur Tag</span></div>
+        <div class="legend"><span><i class="dot-n"></i>24 h</span><span><i class="dot-d"></i>nur Tag</span></div>
         <div class="placing-hint" id="placingHint" hidden>Auf die Karte tippen, um die Position zu setzen</div>
       </div>
       <aside class="side wrap" id="side">
@@ -310,7 +309,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
     <div class="f full"><button class="btn small" type="button" id="e_usepos">Aktuellen Standort eintragen</button></div>
     <div class="f full"><label for="e_address">Adresse / Lage</label><input id="e_address"></div>
     <div class="f"><label for="e_fuel">Kraftstoff</label><input id="e_fuel" placeholder="Jet A-1"></div>
-    <div class="f"><span class="flbl">Verfügbar</span><div class="checks"><label><input type="checkbox" id="e_day"> Tag</label><label><input type="checkbox" id="e_night"> Nacht</label></div></div>
+    <div class="f"><label for="e_avail">Verfügbar</label><select id="e_avail"><option value="tag">Nur Tag</option><option value="h24">24 h (Tag und Nacht)</option></select></div>
     <div class="f full"><label for="e_hours">Zeiten / Einschränkungen</label><input id="e_hours" placeholder="z. B. H24, Personal Mo–Fr 08–17"></div>
     <div class="f full"><label for="e_note">Hinweis / Anweisung vor Ort</label><textarea id="e_note" placeholder="Ablauf an der Säule, Anflug, Zufahrt …"></textarea></div>
     <div class="f"><label for="e_phone">Telefon / Kontakt</label><input id="e_phone"></div>
@@ -340,7 +339,8 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small" type="button" id="s_lock">Sperren</button>
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
-      <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small></div>
+      <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
+      <small class="mono">App-Version 2026-11-03 · 15 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -375,7 +375,7 @@ const SAMPLES=[
  {name:"Beispiel O – Raum Freiberg",kind:"Klinik-Landeplatz",lat:50.869,lon:13.489,day:true,night:true,note:"Beispiel: vorher bei der Klinik anmelden.",hours:"H24"}
 ];
 
-const state={stations:[],pos:null,time:"alle",view:"karte",sel:null,q:"",placing:false,editId:null,
+const state={stations:[],pos:null,time:"tag",view:"karte",sel:null,q:"",placing:false,editId:null,
   key:null,salt:null,iter:ITER,aeroKey:"",aeroOn:false,isSample:false,
   meta:{updated:null,base:null,dirty:false},conflict:false,
   settings:{theme:"",edit:false},gh:{repo:"",token:""}};
@@ -457,6 +457,7 @@ async function loadData(){
   else if(l)useData(l);
 }
 function useData(d){if(d.gh)state.gh=d.gh;state.stations=(d.stations||[]).map(normalize).filter(valid);state.aeroKey=d.aeroKey||"";state.isSample=!!d.isSample;
+  if(!state.isSample&&state.stations.length&&state.stations.every(s=>/^Beispiel\b/.test(s.name)))state.isSample=true;
   if(state.isSample)state.stations=SAMPLES.map(normalize);
   state.meta=Object.assign({updated:null,base:null,dirty:false},d.meta||{})}
 
@@ -480,7 +481,7 @@ function sunInfo(){const p=state.pos||{lat:51.2,lon:10.4};const now=new Date();c
 const hhmm=d=>d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
 
 /* ---------- Karte ---------- */
-const pinHtml=(s,sel)=>`<div class="pin ${s.night?"n":"d"} ${sel?"sel":""}">${s.night?"N":"T"}</div>`;
+const pinHtml=(s,sel)=>`<div class="pin ${s.night?"n":"d"} ${sel?"sel":""}">${s.night?"24":"T"}</div>`;
 let map=null;
 const MapV={
   init(el){this.m=L.map(el).setView([51.2,10.4],6);
@@ -544,10 +545,11 @@ function locate(){
 function startPlacing(){if(!map)return;state.placing=true;$("#placingHint").hidden=false;if(state.view!=="karte")setView("karte")}
 
 /* ---------- Darstellung ---------- */
-function filtered(){const t=state.time;return state.stations.filter(s=>t==="tag"?s.day:t==="nacht"?s.night:true)}
+function filtered(){return state.time==="h24"?state.stations.filter(s=>s.night):state.stations.slice()}
 function withDist(list){if(!state.pos)return list.map(s=>({s})).sort((a,b)=>a.s.name.localeCompare(b.s.name,"de"));
   return list.map(s=>{const km=distKm(state.pos,s);return {s,km,nm:km/1.852,crs:bearing(state.pos,s)}}).sort((a,b)=>a.km-b.km)}
-const badges=s=>`${s.night?'<span class="b n">Nacht</span>':""}${s.day?'<span class="b d">Tag</span>':""}${state.isSample?'<span class="b ex">Beispiel</span>':""}`;
+const availBadge=s=>s.night?'<span class="b n">24 h</span>':'<span class="b d">nur Tag</span>';
+const badges=s=>`${availBadge(s)}${state.isSample?'<span class="b ex">Beispiel</span>':""}`;
 const routeUrl=s=>"https://www.google.com/maps/dir/?api=1&destination="+s.lat.toFixed(6)+","+s.lon.toFixed(6);
 const byId=id=>state.stations.find(s=>s.id===id);
 
@@ -569,9 +571,9 @@ function renderBanners(){let h="";const ed=state.settings.edit;
   else if(ed&&state.meta.dirty&&!state.isSample)h+=`<div class="banner info wrap"><span><b>Änderungen nur auf diesem Gerät.</b> ${ghReady()?"Veröffentlichen, damit die Crew sie bekommt.":`Verschlüsselt exportieren und <span class="mono">${CENTRAL}</span> auf GitHub ersetzen – oder unter ⚙ GitHub verbinden.`}</span><button class="btn small primary" data-act="${ghReady()?"publish":"exportEnc"}">${ghReady()?"Jetzt veröffentlichen":"Jetzt exportieren"}</button></div>`;
   $("#banners").innerHTML=h}
 function renderSide(list,top){
-  const label={tag:"Tagtankung",nacht:"Nachttankung",alle:"Tag & Nacht"}[state.time];let h="";
+  const label={tag:"Tag",h24:"24 h"}[state.time];let h="";
   if(!state.pos)h+=`<div class="next plain"><span class="eyebrow">Standort fehlt</span><div>Für Distanz und Kurs den Standort freigeben oder auf der Karte setzen.</div><div class="row-actions"><button class="btn primary small" data-act="locate">◎ Standort ermitteln</button><button class="btn small" data-act="place">Auf Karte setzen</button></div></div>`;
-  if(!top)h+=`<div class="next plain"><span class="eyebrow">${label}</span><div>Kein Tankpunkt passt zum Filter.</div><div class="row-actions"><button class="btn small" data-act="all">Alle anzeigen</button></div></div>`;
+  if(!top)h+=`<div class="next plain"><span class="eyebrow">${label}</span><div>Kein Tankpunkt passt zum Filter.</div><div class="row-actions"><button class="btn small" data-act="all">Alle Tankpunkte zeigen</button></div></div>`;
   else{const s=top.s,nearest=top===list[0]&&state.pos;
     h+=`<article class="next"><span class="eyebrow">${nearest?"Nächster Tankpunkt · "+label:(state.sel?"Ausgewählt":label)}</span>
       <h2>${esc(s.name)}${s.icao?` <span class="mono muted" style="font-size:16px;font-weight:400">${esc(s.icao)}</span>`:""}</h2>
@@ -591,13 +593,13 @@ function renderCatalog(){const q=state.q.trim().toLowerCase(),ed=state.settings.
   const rows=state.stations.filter(s=>!q||[s.name,s.icao,s.address,s.notes,s.note,s.hours,s.kind].join(" ").toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name,"de"));
   $("#catBody").innerHTML=rows.length?rows.map(s=>`<tr>
     <td><div class="nm">${esc(s.name)}</div><div class="muted">${esc([s.icao,s.kind,s.fuel].filter(Boolean).join(" · "))}</div>${s.address?`<div class="muted">${esc(s.address)}</div>`:""}</td>
-    <td><div class="badges">${s.day?'<span class="b d">Tag</span>':""}${s.night?'<span class="b n">Nacht</span>':""}</div></td>
+    <td><div class="badges">${availBadge(s)}</div></td>
     <td><div style="max-width:36ch">${esc(s.note)}</div></td>
     <td class="coord">${fmtCoord(s)}</td>
     <td>${esc(s.hours)}${s.phone?`<div class="mono">${esc(s.phone)}</div>`:""}${s.updated?`<div class="muted">geprüft ${esc(new Date(s.updated).toLocaleDateString("de-DE"))}</div>`:""}</td>
     ${ed?`<td><div class="row-actions"><button class="btn small" data-act="edit" data-id="${s.id}">Bearbeiten</button><button class="btn small danger" data-act="del" data-id="${s.id}">Löschen</button></div></td>`:""}</tr>`).join("")
     :`<tr><td colspan="6" class="empty">${state.stations.length?"Keine Treffer.":"Noch keine Tankpunkte."}</td></tr>`;
-  $("#catHint").innerHTML=ed?`Bearbeitungsmodus aktiv. Änderungen liegen verschlüsselt auf diesem Gerät. „Veröffentlichen“ schickt die Liste direkt zu GitHub (unter ⚙ verbinden). Ohne Verbindung: „Verschlüsselt exportieren“ und <span class="mono">${CENTRAL}</span> im Repository ersetzen. CSV-Import erkennt Spalten wie Name, ICAO, Lat, Lon, Tag, Nacht, Hinweis, Zeiten, Telefon, Notizen (Trennzeichen ; oder ,).`
+  $("#catHint").innerHTML=ed?`Bearbeitungsmodus aktiv. Änderungen liegen verschlüsselt auf diesem Gerät. „Veröffentlichen“ schickt die Liste direkt zu GitHub (unter ⚙ verbinden). Ohne Verbindung: „Verschlüsselt exportieren“ und <span class="mono">${CENTRAL}</span> im Repository ersetzen. CSV-Import erkennt Spalten wie Name, ICAO, Lat, Lon, 24h (ja/nein), Hinweis, Zeiten, Telefon, Notizen (Trennzeichen ; oder ,).`
     :`Stand der Liste: ${state.meta.updated?new Date(state.meta.updated).toLocaleString("de-DE",{dateStyle:"medium",timeStyle:"short"}):"unbekannt"}.`}
 function applyEditMode(){document.querySelectorAll(".edit-only").forEach(el=>el.hidden=!state.settings.edit)}
 
@@ -610,7 +612,7 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]
   switch(b.dataset.act){
     case "locate":locate();break;
     case "place":startPlacing();break;
-    case "all":state.time="alle";persistUi();render(true);break;
+    case "all":state.time="tag";persistUi();render(true);break;
     case "select":state.sel=id;render();if(map&&s)map.focus(s.lat,s.lon);break;
     case "focus":if(map&&s){setView("karte");map.focus(s.lat,s.lon,12)}break;
     case "copy":if(s)copy(fmtCoord(s)+"  ("+s.lat.toFixed(5)+", "+s.lon.toFixed(5)+")");break;
@@ -631,11 +633,11 @@ function openEdit(s){if(!state.settings.edit)return;state.editId=s?s.id:null;$("
   const v=s||normalize({day:true,night:false,kind:"Flugplatz"});
   $("#e_name").value=v.name;$("#e_icao").value=v.icao;$("#e_kind").value=KINDS.includes(v.kind)?v.kind:"Sonstiges";
   $("#e_lat").value=isFinite(v.lat)?v.lat:"";$("#e_lon").value=isFinite(v.lon)?v.lon:"";$("#e_address").value=v.address;$("#e_fuel").value=v.fuel;
-  $("#e_day").checked=v.day;$("#e_night").checked=v.night;$("#e_hours").value=v.hours;$("#e_note").value=v.note;$("#e_phone").value=v.phone;$("#e_notes").value=v.notes;$("#e_updated").value=v.updated||"";
+  $("#e_avail").value=v.night?"h24":"tag";$("#e_hours").value=v.hours;$("#e_note").value=v.note;$("#e_phone").value=v.phone;$("#e_notes").value=v.notes;$("#e_updated").value=v.updated||"";
   $("#dlgEdit").showModal()}
 $("#formEdit").addEventListener("submit",e=>{e.preventDefault();
   const o=normalize({id:state.editId||undefined,name:$("#e_name").value,icao:$("#e_icao").value,kind:$("#e_kind").value,lat:$("#e_lat").value,lon:$("#e_lon").value,address:$("#e_address").value,fuel:$("#e_fuel").value||"Jet A-1",
-    day:$("#e_day").checked,night:$("#e_night").checked,hours:$("#e_hours").value,note:$("#e_note").value,phone:$("#e_phone").value,notes:$("#e_notes").value,updated:$("#e_updated").value});
+    day:true,night:$("#e_avail").value==="h24",hours:$("#e_hours").value,note:$("#e_note").value,phone:$("#e_phone").value,notes:$("#e_notes").value,updated:$("#e_updated").value});
   if(!valid(o)){toast("Name und gültige Koordinaten (z. B. 51.5181 / 7.6122) eintragen.");return}
   if(state.isSample)state.stations=[];
   const i=state.stations.findIndex(x=>x.id===o.id);if(i>=0)state.stations[i]=o;else state.stations.push(o);
@@ -676,7 +678,7 @@ function parseCSV(text){text=text.replace(/^﻿/,"");const first=text.split(/\r?
     else if(c==='"')q=true;else if(c===delim){row.push(f);f=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(f);rows.push(row);row=[];f=""}else f+=c}
   if(f||row.length){row.push(f);rows.push(row)}return rows.filter(r=>r.some(x=>x.trim()!==""))}
 const MAP={name:["name","bezeichnung","tankstelle","tankpunkt"],icao:["icao","kennung","kürzel"],kind:["typ","art","kategorie"],lat:["lat","breite","breitengrad","latitude","nord"],lon:["lon","lng","länge","laenge","längengrad","longitude","ost"],
-  coords:["koordinaten","position"],address:["adresse","anschrift","ort","lage"],fuel:["kraftstoff","fuel","treibstoff"],day:["tag","tagverfügbar","tagsüber","tags"],night:["nacht","nachtverfügbar","nachts"],
+  coords:["koordinaten","position"],address:["adresse","anschrift","ort","lage"],fuel:["kraftstoff","fuel","treibstoff"],day:["tag","tagverfügbar","tagsüber","tags"],night:["nacht","nachtverfügbar","nachts","h","std","stunden","rundumdieuhr"],
   hours:["zeiten","öffnungszeiten","uhrzeit","verfügbarkeit"],note:["hinweis","anweisung","anweisungen","zugangshinweis","hinweisvorort","ablauf"],
   phone:["telefon","tel","kontakt","telefonnummer"],notes:["notizen","notiz","bemerkung","bemerkungen","info"],updated:["geprüft","geprueft","stand","aktualisiert"]};
 const nk=s=>String(s).toLowerCase().replace(/[^a-zäöüß]/g,"");
@@ -721,7 +723,7 @@ async function publish(btn){if(!ghReady()){toast("Erst unter ⚙ GitHub verbinde
   finally{if(btn){btn.disabled=false;btn.textContent=old}}}
 $("#btnPublish").addEventListener("click",e=>publish(e.currentTarget));
 const csvCell=v=>{v=String(v??"");return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
-const CSV_HEAD=["Name","ICAO","Art","Lat","Lon","Adresse","Kraftstoff","Tag","Nacht","Zeiten","Hinweis","Telefon","Notizen","Geprüft"];
+const CSV_HEAD=["Name","ICAO","Art","Lat","Lon","Adresse","Kraftstoff","Tag","24h","Zeiten","Hinweis","Telefon","Notizen","Geprüft"];
 const toRow=s=>[s.name,s.icao,s.kind,String(s.lat).replace(".",","),String(s.lon).replace(".",","),s.address,s.fuel,s.day?"ja":"nein",s.night?"ja":"nein",s.hours,s.note,s.phone,s.notes,s.updated];
 $("#btnExportEnc").addEventListener("click",exportEnc);
 $("#btnExportCsv").addEventListener("click",()=>download("tankpunkte-"+new Date().toISOString().slice(0,10)+".csv","﻿"+[CSV_HEAD,...state.stations.map(toRow)].map(r=>r.map(csvCell).join(";")).join("\r\n"),"text/csv"));
@@ -817,7 +819,7 @@ function renderRoute(){const pts=state.route.pts,out=$("#routeOut");if(!out)retu
     if(ctrState.list)h+=`<div class="eyebrow">Geschnittene Kontrollzonen · ${ctrState.list.length}</div>`+(ctrState.list.length?`<div class="ctrl">${ctrState.list.map(c=>`<div class="ctr"><b>${esc(c.name)}</b><span>${esc(c.lim)}</span></div>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Die Linie schneidet keine CTR.</div>`);
     if(ctrState.msg)h+=`<div class="muted" style="font-size:13px">${esc(ctrState.msg)}</div>`;
     const near=filtered().map(s=>Object.assign({s},offRoute(s,pts))).filter(x=>x.nm<=state.route.corr).sort((a,b)=>a.leg-b.leg||a.nm-b.nm).slice(0,25);
-    const lbl={tag:"Tag",nacht:"Nacht",alle:"Tag & Nacht"}[state.time];
+    const lbl={tag:"Tag",h24:"24 h"}[state.time];
     h+=`<div class="eyebrow">Tankpunkte an der Strecke · ≤ ${state.route.corr} NM · ${lbl}${near.length?" · "+near.length:""}</div>`+(near.length?`<div class="list">${near.map(x=>`<button class="item" data-act="select" data-id="${x.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${fmt(x.nm,1)} NM</span><span class="sub">Abschnitt ${pts[x.leg].l} → ${pts[x.leg+1].l}${x.s.hours?" · "+esc(x.s.hours):""}</span><span></span></button>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Keine passenden Tankpunkte im Korridor.</div>`);
   } else $("#routeSum").textContent="Luftlinie A → B → C";
   out.innerHTML=h}
@@ -834,7 +836,7 @@ setInterval(()=>{if(state.key)render(false)},60000);
 /* ---------- Start ---------- */
 (async function boot(){
   const st=store.get(K_SET);if(st)state.settings=Object.assign(state.settings,st);applyTheme();applyEditMode();
-  if(["tag","nacht","alle"].includes(state.settings.time))state.time=state.settings.time;state.aeroOn=state.settings.aeroOn!==false;
+  state.time=state.settings.time==="nacht"||state.settings.time==="h24"?"h24":"tag";state.aeroOn=state.settings.aeroOn!==false;
   try{const p=JSON.parse(sessionStorage.getItem("tp.pos")||"null");if(p)state.pos=p}catch(e){}
   if(!cryptoOk()){showLock("unlock","Dieser Browser unterstützt keine Entschlüsselung. Bitte die App über https öffnen.");return}
   const central=await fetchCentral();localEnv=store.get(K_LOCAL);
