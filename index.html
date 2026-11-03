@@ -334,6 +334,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
     <div class="sect f full"><span class="flbl">Daten</span><div class="row-actions">
       <button class="btn small" type="button" id="s_reload">Zentrale Liste neu laden</button>
       <button class="btn small" type="button" id="s_lock">Sperren</button>
+      <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small></div>
   </div>
@@ -357,7 +358,17 @@ const SAMPLES=[
  {name:"Beispiel B – Raum Köln",kind:"Flugplatz",lat:50.87,lon:7.12,day:true,night:false,note:"Beispiel: nur mit Personal.",hours:"Personal 07–21 LT"},
  {name:"Beispiel C – Westerwald",kind:"Tanklager",lat:50.62,lon:7.85,day:true,night:true,note:"Beispiel: Zufahrt über Tor Nord.",hours:"H24"},
  {name:"Beispiel D – Raum Hannover",kind:"Klinik-Landeplatz",lat:52.37,lon:9.80,day:true,night:true,note:"Beispiel: vorher bei der Klinik anmelden.",hours:"H24"},
- {name:"Beispiel E – Raum Frankfurt",kind:"Flugplatz",lat:50.05,lon:8.60,day:true,night:false,note:"",hours:"Personal 06–22 LT"}
+ {name:"Beispiel E – Raum Frankfurt",kind:"Flugplatz",lat:50.05,lon:8.60,day:true,night:false,note:"",hours:"Personal 06–22 LT"},
+ {name:"Beispiel F – Raum Lippstadt",kind:"Flugplatz",lat:51.515,lon:8.365,day:true,night:true,note:"Beispiel: Säule am Vorfeld Ost.",hours:"H24"},
+ {name:"Beispiel G – Raum Korbach",kind:"Tanklager",lat:51.145,lon:8.906,day:true,night:false,note:"",hours:"Personal 08–18 LT"},
+ {name:"Beispiel H – Raum Uslar",kind:"Flugplatz",lat:51.740,lon:9.738,day:true,night:false,note:"",hours:"Personal 09–17 LT"},
+ {name:"Beispiel I – Raum Mühlhausen",kind:"Klinik-Landeplatz",lat:51.129,lon:10.346,day:true,night:true,note:"Beispiel: Anmeldung über Klinikpforte.",hours:"H24"},
+ {name:"Beispiel J – Raum Halberstadt",kind:"Flugplatz",lat:51.861,lon:11.149,day:true,night:true,note:"",hours:"H24"},
+ {name:"Beispiel K – Raum Rudolstadt",kind:"Flugplatz",lat:50.669,lon:11.305,day:true,night:false,note:"",hours:"Personal 08–20 LT"},
+ {name:"Beispiel L – Raum Leuna",kind:"Tanklager",lat:51.303,lon:12.084,day:true,night:true,note:"Beispiel: Zufahrt über Tor 3.",hours:"H24"},
+ {name:"Beispiel M – Vogtland",kind:"Flugplatz",lat:50.308,lon:12.476,day:true,night:false,note:"",hours:"Personal 09–18 LT"},
+ {name:"Beispiel N – Raum Riesa",kind:"Flugplatz",lat:51.299,lon:13.214,day:true,night:true,note:"",hours:"H24"},
+ {name:"Beispiel O – Raum Freiberg",kind:"Klinik-Landeplatz",lat:50.869,lon:13.489,day:true,night:true,note:"Beispiel: vorher bei der Klinik anmelden.",hours:"H24"}
 ];
 
 const state={stations:[],pos:null,time:"alle",view:"karte",sel:null,q:"",placing:false,editId:null,
@@ -442,6 +453,7 @@ async function loadData(){
   else if(l)useData(l);
 }
 function useData(d){if(d.gh)state.gh=d.gh;state.stations=(d.stations||[]).map(normalize).filter(valid);state.aeroKey=d.aeroKey||"";state.isSample=!!d.isSample;
+  if(state.isSample)state.stations=SAMPLES.map(normalize);
   state.meta=Object.assign({updated:null,base:null,dirty:false},d.meta||{})}
 
 /* ---------- Geo ---------- */
@@ -538,7 +550,7 @@ function render(fit){
   renderSide(list,top,sun);renderCatalog();renderBanners();renderRoute();
 }
 function renderBanners(){let h="";const ed=state.settings.edit;
-  if(state.isSample)h+=`<div class="banner info wrap"><span><b>Beispieldaten.</b> Die fünf Einträge sind erfunden. Importiere eure Liste im Katalog.</span></div>`;
+  if(state.isSample)h+=`<div class="banner info wrap"><span><b>Beispieldaten.</b> Alle Einträge sind erfunden. Importiere eure Liste im Katalog.</span></div>`;
   if(state.conflict)h+=`<div class="banner alert wrap"><span><b>Neuere zentrale Liste vorhanden.</b> Deine lokalen Änderungen sind noch nicht veröffentlicht.</span><button class="btn small" data-act="takeCentral">Zentrale Liste übernehmen</button></div>`;
   else if(ed&&state.meta.dirty&&!state.isSample)h+=`<div class="banner info wrap"><span><b>Änderungen nur auf diesem Gerät.</b> ${ghReady()?"Veröffentlichen, damit die Crew sie bekommt.":`Verschlüsselt exportieren und <span class="mono">${CENTRAL}</span> auf GitHub ersetzen – oder unter ⚙ GitHub verbinden.`}</span><button class="btn small primary" data-act="${ghReady()?"publish":"exportEnc"}">${ghReady()?"Jetzt veröffentlichen":"Jetzt exportieren"}</button></div>`;
   $("#banners").innerHTML=h}
@@ -636,6 +648,8 @@ $("#s_reload").addEventListener("click",async()=>{const env=await fetchCentral()
     else{useData(c);state.meta.base=state.meta.updated;state.meta.dirty=false;await saveLocal();render(true);toast(state.stations.length+" Tankpunkte geladen")}}
   catch(x){toast("Zentrale Liste konnte nicht entschlüsselt werden.")}
   $("#dlgSettings").close()});
+$("#s_demo").addEventListener("click",async function(){if(!state.isSample&&this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Eigene Liste ersetzen?";return}
+  this.dataset.arm="";this.textContent="Beispieldaten laden";state.stations=SAMPLES.map(normalize);state.isSample=true;await saveLocal();$("#dlgSettings").close();render(true);toast(state.stations.length+" Beispiel-Tankpunkte geladen")});
 $("#s_lock").addEventListener("click",()=>{store.del(K_KEY);location.reload()});
 $("#s_reset").addEventListener("click",function(){if(this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Wirklich zurücksetzen?";return}
   store.del(K_LOCAL);store.del(K_KEY);store.del(K_SET);location.reload()});
