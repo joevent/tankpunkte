@@ -384,7 +384,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 17:00 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 17:05 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -543,7 +543,7 @@ const MapV={
       {pane:"aero",interactive:true,bubblingMouseEvents:true,style:{color:"#c2185b",weight:2,dashArray:"7 5",opacity:.9,fillColor:"#c2185b",fillOpacity:.07},attribution:"CTR/Flugplätze © openAIP (nicht für die Flugplanung)",
        onEachFeature:(f,l)=>l.bindPopup(()=>ctrPopup(f.properties.ref),{autoPanPadding:[20,20]})}).addTo(this.m)},
   setBorders(geo,on){if(this.bord){this.m.removeLayer(this.bord);this.bord=null}if(!on||!geo)return;
-    const g=L.layerGroup(),dk=isDark(),c1=dk?"#c9d2db":"#1d2329",c2=dk?"#9aa6b2":"#3a4652";
+    const base=state.settings.base||"street",dk=isDark()&&(base==="street"||base==="off"),g=L.layerGroup(),c1=dk?"#c9d2db":"#1d2329",c2=dk?"#9aa6b2":"#3a4652";
     L.geoJSON(geo.coast,{pane:"border",interactive:false,style:{color:c2,weight:1,opacity:.6}}).addTo(g);
     L.geoJSON(geo.other,{pane:"border",interactive:false,style:{color:c2,weight:1.5,opacity:.9,dashArray:"6 3 1 3"}}).addTo(g);
     L.geoJSON(geo.de,{pane:"border",interactive:false,style:{color:c1,weight:2.6,opacity:.95,dashArray:"8 3 2 3"}}).addTo(g);
@@ -673,7 +673,7 @@ function closeLayers(){if($("#layersPanel").hidden)return;$("#layersPanel").hidd
 document.addEventListener("pointerdown",e=>{if(!e.target.closest("#layersPanel,#btnLayers"))closeLayers()},true);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeLayers()});
 $("#btnLayers").addEventListener("click",()=>{const p=$("#layersPanel"),o=p.hidden;p.hidden=!o;$("#btnLayers").setAttribute("aria-expanded",String(o));renderLayers()});
-$("#baseSeg").addEventListener("click",e=>{const x=e.target.closest("[data-base]");if(!x)return;state.settings.base=x.dataset.base;store.set(K_SET,state.settings);renderLayers();if(map)map.setBase(state.settings.base,state.settings.baseOp??100)});
+$("#baseSeg").addEventListener("click",e=>{const x=e.target.closest("[data-base]");if(!x)return;state.settings.base=x.dataset.base;store.set(K_SET,state.settings);renderLayers();if(map){map.setBase(state.settings.base,state.settings.baseOp??100);updateBorders()}});
 $("#baseOp").addEventListener("input",e=>{state.settings.baseOp=+e.target.value;$("#baseOpV").textContent=e.target.value+" %";if(map)map.setBaseOpacity(+e.target.value)});
 $("#baseOp").addEventListener("change",()=>store.set(K_SET,state.settings));
 
