@@ -376,7 +376,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 16:25 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 16:30 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -582,15 +582,15 @@ function startMap(){if(!window.L){toast("Kartenbibliothek nicht geladen – List
   map=MapV;map.init($("#map"));map.onClick=(lat,lon)=>{if(!state.placing)return;state.placing=false;$("#placingHint").hidden=true;setPos({lat,lon,src:"manuell"},true)};
   updateAero();if(state.route.pts){map.setRoute(state.route.pts,state.route.corr);checkCtrs()}render(!state.route.pts);if(state.route.pts)map.fit(state.route.pts.map(p=>[p.lat,p.lon]))}
 /* Alle CTRs in Deutschland einmal laden (eine Abfrage, 7 Tage zwischengespeichert) – statt Rasterkarte mit allen Luftraumarten */
-const CK="tp.ctr.v1";let ctrAll=null,ctrLoading=null;
+const CK="tp.ctr.v2";let ctrAll=null,ctrLoading=null;
 async function loadCtrs(force){if(!state.aeroKey)return null;
   if(!force&&ctrAll)return ctrAll;
   const c=store.get(CK);if(!force&&c&&c.k===state.aeroKey.slice(-6)&&Date.now()-c.t<7*864e5&&Array.isArray(c.items)){ctrAll=c.items;return ctrAll}
   if(ctrLoading)return ctrLoading;
   ctrLoading=(async()=>{let items=[],page=1,pages=1;
-    do{const u="https://api.core.openaip.net/api/airspaces?bbox=5.3,46.9,15.6,55.3&type=4&limit=500&page="+page+"&apiKey="+encodeURIComponent(state.aeroKey);
-      const r=await fetch(u,{headers:{"Accept":"application/json"}});
-      if(!r.ok)throw new Error(r.status===401||r.status===403?"openAIP-Schlüssel abgelehnt":"openAIP antwortet mit "+r.status);
+    do{const u="https://api.core.openaip.net/api/airspaces?country=DE&type=4&limit=500&page="+page+"&apiKey="+encodeURIComponent(state.aeroKey);
+      let r;try{r=await fetch(u)}catch(x){throw new Error("openAIP nicht erreichbar")}
+      if(!r.ok)throw new Error(r.status===401||r.status===403||r.status===404?"openAIP-Schlüssel abgelehnt ("+r.status+")":"openAIP antwortet mit "+r.status);
       const j=await r.json();items=items.concat(j.items||[]);pages=j.totalPages||1;page++}while(page<=pages&&page<=8);
     ctrAll=items.filter(a=>a.type===4&&a.geometry).map(a=>({name:a.name,cls:a.icaoClass!=null&&CLS[a.icaoClass]?"Klasse "+CLS[a.icaoClass]:"CTR",lim:limTxt(a.lowerLimit)+" – "+limTxt(a.upperLimit),geometry:a.geometry}));
     store.set(CK,{t:Date.now(),k:state.aeroKey.slice(-6),items:ctrAll});return ctrAll})();
