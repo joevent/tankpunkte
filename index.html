@@ -376,7 +376,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 16:10 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 16:15 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -818,6 +818,9 @@ $("#corrSeg").addEventListener("click",e=>{const b=e.target.closest("[data-corr]
 function renderWps(){$("#wpList").innerHTML=state.route.wps.map((v,i)=>`<div class="wp"><span class="wp-l">${LET[i]}</span><input id="wp${i}" data-i="${i}" value="${esc(v)}" placeholder="${i===0?"z. B. Dortmund oder EDLW":"Ort, ICAO, Tankpunkt, 51.5 7.6"}" autocomplete="off" enterkeyhint="go"><button type="button" class="btn small" data-wpgps="${i}" aria-label="Aktuellen Standort einsetzen" title="Aktueller Standort">◎</button><button type="button" class="btn small" data-wpdel="${i}" aria-label="Punkt entfernen" ${state.route.wps.length<=2?"disabled":""}>✕</button></div>`).join("");
   $("#wpLoop").checked=!!state.route.loop;$("#wpAdd").disabled=state.route.wps.length>=LET.length}
 $("#wpList").addEventListener("input",e=>{const i=e.target.dataset.i;if(i==null)return;state.route.wps[+i]=e.target.value;e.target.classList.remove("bad");saveRoute()});
+/* Beim Antippen eines Feldes den alten Inhalt markieren, damit neue Eingabe ihn ersetzt (auch auf iPhone) */
+$("#wpList").addEventListener("focusin",e=>{const t=e.target;if(t.tagName!=="INPUT"||!t.value)return;setTimeout(()=>{try{t.setSelectionRange(0,t.value.length)}catch(x){t.select()}},0)});
+$("#wpList").addEventListener("mouseup",e=>{if(e.target.tagName==="INPUT"&&e.target.selectionStart!==e.target.selectionEnd)e.preventDefault()});
 $("#wpList").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.i!=null){e.preventDefault();drawRoute()}});
 $("#wpList").addEventListener("click",e=>{const g=e.target.closest("[data-wpgps]"),d=e.target.closest("[data-wpdel]");
   if(g){state.route.wps[+g.dataset.wpgps]="Standort";renderWps();if(!state.pos)locate()}
