@@ -197,6 +197,12 @@ td .nm{font-weight:600}
 .near[open] summary::after{content:"▴"}
 .near .cnt{margin-left:auto;font:600 12px/1 var(--f-mono);background:var(--head);color:var(--head-fg);border-radius:10px;padding:3px 8px}
 .near[open] .list{margin-top:6px}
+.apt{position:relative;width:0;height:0}
+.apt i{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#fff;border:2.5px solid #2b4a8e;box-sizing:border-box;box-shadow:0 0 0 1px rgba(255,255,255,.7)}
+.apt.mil i{border-color:#556b2f}
+.apt span{position:absolute;left:8px;top:-8px;font:600 11px/1 var(--f-mono);color:#1d2329;background:rgba(255,255,255,.85);padding:2px 3px;border-radius:2px;white-space:nowrap;pointer-events:none}
+.apt-nolbl .apt span{display:none}
+.pop table{border-collapse:collapse;font-size:13px}.pop td{padding:1px 8px 1px 0;font-family:var(--f-mono);vertical-align:top}
 .legs{width:100%;border-collapse:collapse;font-size:14px;min-width:0}
 .legs td{padding:5px 4px;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 .legs td:first-child{font-family:var(--f-body);white-space:normal}
@@ -291,6 +297,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
             <div class="lseg" id="baseSeg"><button type="button" data-base="relief">Relief</button><button type="button" data-base="topo">Topo</button><button type="button" data-base="street">Straße</button><button type="button" data-base="off">Aus</button></div>
             <label class="lrow" for="baseOp"><span>Deckkraft</span><input type="range" id="baseOp" min="15" max="100" step="5"><span class="mono" id="baseOpV"></span></label>
             <label class="lrow"><input type="checkbox" id="aeroChk"> <span>Kontrollzonen (CTR)</span></label>
+            <label class="lrow"><input type="checkbox" id="aptChk"> <span>Flugplätze (ICAO)</span></label>
             <small class="muted" id="aeroHint" hidden>Schlüssel unter ⚙ eintragen.</small>
           </div></div>
         <div class="legend"><span><i class="dot-n"></i>24 h</span><span><i class="dot-d"></i>nur Tag</span></div>
@@ -376,7 +383,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 16:30 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 16:40 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -522,14 +529,20 @@ let map=null;
 const MapV={
   init(el){this.m=L.map(el).setView([51.2,10.4],6);
     this.setBase(state.settings.base||"street",state.settings.baseOp??100);
-    this.m.createPane("aero");this.m.getPane("aero").style.zIndex=350;this.m.getPane("aero").style.pointerEvents="none";
+    this.m.createPane("aero");this.m.getPane("aero").style.zIndex=350;
+    this.m.createPane("apt");this.m.getPane("apt").style.zIndex=580;
+    const lbl=()=>this.m.getContainer().classList.toggle("apt-nolbl",this.m.getZoom()<8);this.m.on("zoomend",lbl);lbl();
     this.m.on("zoomend",()=>this.updCorr&&this.updCorr());
     this.m.createPane("ctr");this.m.getPane("ctr").style.zIndex=390;
     this.layer=L.layerGroup().addTo(this.m);this.m.on("click",e=>this.onClick&&this.onClick(e.latlng.lat,e.latlng.lng))},
   setAero(list,on){if(this.aero){this.m.removeLayer(this.aero);this.aero=null}
     if(!on||!list||!list.length)return;
-    this.aero=L.geoJSON({type:"FeatureCollection",features:list.map(a=>({type:"Feature",properties:{name:a.name,lim:a.lim},geometry:a.geometry}))},
-      {pane:"aero",interactive:false,style:{color:"#c2185b",weight:2,dashArray:"7 5",opacity:.9,fillColor:"#c2185b",fillOpacity:.07},attribution:"CTR © openAIP (nicht für die Flugplanung)"}).addTo(this.m)},
+    this.aero=L.geoJSON({type:"FeatureCollection",features:list.map(a=>({type:"Feature",properties:{ref:a},geometry:a.geometry}))},
+      {pane:"aero",interactive:true,bubblingMouseEvents:true,style:{color:"#c2185b",weight:2,dashArray:"7 5",opacity:.9,fillColor:"#c2185b",fillOpacity:.07},attribution:"CTR/Flugplätze © openAIP (nicht für die Flugplanung)",
+       onEachFeature:(f,l)=>l.bindPopup(()=>ctrPopup(f.properties.ref),{autoPanPadding:[20,20]})}).addTo(this.m)},
+  setApts(list,on){if(this.apt){this.m.removeLayer(this.apt);this.apt=null}if(!on||!list||!list.length)return;
+    const g=L.layerGroup();list.forEach(a=>{L.marker([a.lat,a.lon],{pane:"apt",icon:L.divIcon({className:"",html:`<div class="apt${a.mil?" mil":""}"><i></i><span>${esc(a.icao)}</span></div>`,iconSize:[0,0]})})
+      .bindPopup(()=>aptPopup(a),{offset:[0,-4],autoPanPadding:[20,20]}).addTo(g)});this.apt=g.addTo(this.m)},
   setStations(list,sel,cb){
     /* Marker nur neu bauen, wenn sich die Liste ändert – sonst nur das Symbol tauschen, damit ein offenes Popup offen bleibt */
     const icon=s=>L.divIcon({className:"",html:pinHtml(s,s.id===sel),iconSize:[26,26],iconAnchor:[13,13]});
@@ -587,15 +600,43 @@ async function loadCtrs(force){if(!state.aeroKey)return null;
   if(!force&&ctrAll)return ctrAll;
   const c=store.get(CK);if(!force&&c&&c.k===state.aeroKey.slice(-6)&&Date.now()-c.t<7*864e5&&Array.isArray(c.items)){ctrAll=c.items;return ctrAll}
   if(ctrLoading)return ctrLoading;
-  ctrLoading=(async()=>{let items=[],page=1,pages=1;
-    do{const u="https://api.core.openaip.net/api/airspaces?country=DE&type=4&limit=500&page="+page+"&apiKey="+encodeURIComponent(state.aeroKey);
-      let r;try{r=await fetch(u)}catch(x){throw new Error("openAIP nicht erreichbar")}
-      if(!r.ok)throw new Error(r.status===401||r.status===403||r.status===404?"openAIP-Schlüssel abgelehnt ("+r.status+")":"openAIP antwortet mit "+r.status);
-      const j=await r.json();items=items.concat(j.items||[]);pages=j.totalPages||1;page++}while(page<=pages&&page<=8);
+  ctrLoading=(async()=>{const items=await oaipPages("airspaces");
     ctrAll=items.filter(a=>a.type===4&&a.geometry).map(a=>({name:a.name,cls:a.icaoClass!=null&&CLS[a.icaoClass]?"Klasse "+CLS[a.icaoClass]:"CTR",lim:limTxt(a.lowerLimit)+" – "+limTxt(a.upperLimit),geometry:a.geometry}));
     store.set(CK,{t:Date.now(),k:state.aeroKey.slice(-6),items:ctrAll});return ctrAll})();
   try{return await ctrLoading}finally{ctrLoading=null}}
-async function updateAero(){const has=!!state.aeroKey;$("#aeroChk").disabled=!has;$("#aeroChk").checked=has&&state.aeroOn;$("#aeroHint").hidden=has;
+const AK="tp.apt.v2";let aptAll=null,aptLoading=null;
+async function oaipPages(kind){let items=[],page=1,pages=1;
+  do{const u="https://api.core.openaip.net/api/"+kind+"?country=DE&limit=500&page="+page+(kind==="airspaces"?"&type=4":"")+"&apiKey="+encodeURIComponent(state.aeroKey);
+    let r;try{r=await fetch(u)}catch(x){throw new Error("openAIP nicht erreichbar")}
+    if(!r.ok)throw new Error(r.status===401||r.status===403||r.status===404?"openAIP-Schlüssel abgelehnt ("+r.status+")":"openAIP antwortet mit "+r.status);
+    const j=await r.json();items=items.concat(j.items||[]);pages=j.totalPages||1;page++}while(page<=pages&&page<=10);return items}
+function unitTxt(v){if(!v||v.value==null)return "";return Math.round(v.value)+(v.unit===0?" m":v.unit===1?" ft":"")}
+function elevTxt(v){if(!v||v.value==null)return "";return v.unit===0?Math.round(v.value*3.28084)+" ft ("+Math.round(v.value)+" m)":unitTxt(v)}
+async function loadApts(){if(!state.aeroKey)return null;if(aptAll)return aptAll;
+  const c=store.get(AK);if(c&&c.k===state.aeroKey.slice(-6)&&Date.now()-c.t<7*864e5&&Array.isArray(c.items)){aptAll=c.items;return aptAll}
+  if(aptLoading)return aptLoading;
+  aptLoading=(async()=>{const items=await oaipPages("airports");
+    aptAll=items.filter(a=>a.icaoCode&&/^[A-Z]{4}$/.test(a.icaoCode)&&a.geometry&&a.geometry.coordinates).map(a=>({icao:a.icaoCode,name:a.name||"",lat:a.geometry.coordinates[1],lon:a.geometry.coordinates[0],
+      elev:a.elevation?elevTxt(a.elevation):"",mil:a.type===5,
+      rwy:(a.runways||[]).filter(r=>r.designator).slice(0,6).map(r=>({d:r.designator,len:r.dimension&&r.dimension.length?unitTxt(r.dimension.length):""})),
+      frq:(a.frequencies||[]).filter(f=>f.value).slice(0,6).map(f=>({v:String(f.value),n:f.name||""}))}));
+    try{store.set(AK,{t:Date.now(),k:state.aeroKey.slice(-6),items:aptAll})}catch(x){}return aptAll})();
+  try{return await aptLoading}finally{aptLoading=null}}
+function aptPopup(a){const ctr=(ctrAll||[]).find(c=>routeHitsGeom([{lat:a.lat,lon:a.lon}],c.geometry));
+  const rw=[],num=d=>parseInt(d,10),suf=d=>({L:"R",R:"L",C:"C"})[d.replace(/\d/g,"")]||"";
+  for(const r of a.rwy){const n=num(r.d),opp=isFinite(n)?String(((n+17)%36)+1).padStart(2,"0")+suf(r.d):null;
+    const pair=rw.find(x=>!x.d.includes("/")&&opp&&x.d===opp);if(pair)pair.d=pair.d+"/"+r.d;else if(!rw.some(x=>x.d.split("/").includes(r.d)))rw.push(Object.assign({},r))}
+  return `<div class="pop"><span class="eyebrow">Flugplatz</span><b><span class="mono">${esc(a.icao)}</span> · ${esc(a.name)}</b>${a.elev?`<div class="muted">Elevation ${esc(a.elev)}</div>`:""}${ctr?`<div>In <b>${esc(ctr.name)}</b> (${esc(ctr.lim)})</div>`:""}
+    ${rw.length?`<table>${rw.map(r=>`<tr><td>RWY ${esc(r.d)}</td><td>${esc(r.len)}</td></tr>`).join("")}</table>`:""}
+    ${a.frq.length?`<table>${a.frq.map(f=>`<tr><td>${esc(f.v)}</td><td>${esc(f.n)}</td></tr>`).join("")}</table>`:""}
+    <div class="row-actions"><button class="btn small primary" data-act="addapt" data-icao="${esc(a.icao)}">Zur Strecke</button><a class="btn small" href="${routeUrl(a)}" target="_blank" rel="noopener">Google Maps</a></div></div>`}
+function ctrPopup(c){const apts=(aptAll||[]).filter(a=>routeHitsGeom([{lat:a.lat,lon:a.lon}],c.geometry));
+  return `<div class="pop"><span class="eyebrow">Kontrollzone · ${esc(c.cls)}</span><b>${esc(c.name)}</b><div class="mono">${esc(c.lim)}</div>${apts.length?`<div>Flugplatz: ${apts.map(a=>`<b class="mono">${esc(a.icao)}</b> ${esc(a.name)}`).join(", ")}</div>`:""}</div>`}
+async function updateApts(){const has=!!state.aeroKey;$("#aptChk").disabled=!has;$("#aptChk").checked=has&&state.aptOn;
+  if(!map)return;if(!has||!state.aptOn){map.setApts(null,false);return}
+  try{const l=await loadApts();map.setApts(l,state.aptOn)}catch(x){toast("Flugplätze nicht geladen: "+x.message)}}
+$("#aptChk").addEventListener("change",e=>{state.aptOn=e.target.checked;state.settings.aptOn=state.aptOn;store.set(K_SET,state.settings);updateApts()});
+async function updateAero(){updateApts();if(state.aeroKey){loadApts().catch(()=>{});loadCtrs().catch(()=>{})}const has=!!state.aeroKey;$("#aeroChk").disabled=!has;$("#aeroChk").checked=has&&state.aeroOn;$("#aeroHint").hidden=has;
   if(!map)return;if(!has||!state.aeroOn){map.setAero(null,false);return}
   try{const l=await loadCtrs();map.setAero(l,state.aeroOn)}catch(x){toast("Kontrollzonen nicht geladen: "+x.message)}}
 $("#aeroChk").addEventListener("change",e=>{state.aeroOn=e.target.checked;state.settings.aeroOn=state.aeroOn;store.set(K_SET,state.settings);updateAero()});
@@ -714,6 +755,7 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]
     case "exportEnc":exportEnc();break;
     case "rmwp":{if(map&&map.m)map.m.closePopup();const i=LET.indexOf(b.dataset.l);if(i>=0&&i<state.route.wps.length){state.route.wps.splice(i,1);while(state.route.wps.length<2)state.route.wps.push("");renderWps();saveRoute();
       if(state.route.wps.filter(x=>x.trim()).length>=2)drawRoute();else{state.route.pts=null;saveRoute();if(map){map.setRoute(null);map.setCtrs(null)}renderRoute()}toast("Wegpunkt entfernt")}}break;
+    case "addapt":{if(map&&map.m)map.m.closePopup();const ap=(aptAll||[]).find(a=>a.icao===b.dataset.icao);if(ap)addToRoute({name:ap.icao,lat:ap.lat,lon:ap.lon});}break;
     case "addroute":if(s){if(map&&map.m)map.m.closePopup();addToRoute(s)}break;
     case "details":if(s){if(map&&map.m)map.m.closePopup();state.sel=id;render();const d=$("#sideTop");if(d&&innerWidth<920)d.scrollIntoView({behavior:"smooth",block:"start"})}break;
     case "publish":publish(b);break;
@@ -862,6 +904,7 @@ async function resolveWp(q){q=q.trim();if(!q)return null;
   let m=q.match(/^(-?\d{1,2}(?:[.,]\d+)?)\s*[;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)$/)||q.match(/^(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)$/);
   if(m){const lat=parseFloat(m[1].replace(",",".")),lon=parseFloat(m[2].replace(",","."));if(Math.abs(lat)<=90&&Math.abs(lon)<=180)return {lat,lon,label:fmtCoord({lat,lon})}}
   const ql=q.toLowerCase();
+  if(/^[a-z]{4}$/i.test(q)&&state.aeroKey){try{const ap=(await loadApts()||[]).find(a=>a.icao===q.toUpperCase());if(ap)return {lat:ap.lat,lon:ap.lon,label:ap.icao+" "+ap.name}}catch(x){}}
   const st=state.stations.find(s=>s.icao&&s.icao.toLowerCase()===ql)||state.stations.find(s=>s.name.toLowerCase()===ql)||(ql.length>=4?state.stations.find(s=>s.name.toLowerCase().includes(ql)):null);
   if(st)return {lat:st.lat,lon:st.lon,label:st.name};
   return await geocode(/^[a-z]{4}$/i.test(q)?q+" Flugplatz":q)||(/^[a-z]{4}$/i.test(q)?await geocode(q):null)}
@@ -944,7 +987,7 @@ setInterval(()=>{if(state.key)render(false)},60000);
 /* ---------- Start ---------- */
 (async function boot(){
   const st=store.get(K_SET);if(st)state.settings=Object.assign(state.settings,st);applyTheme();applyEditMode();
-  state.time=state.settings.time==="nacht"||state.settings.time==="h24"?"h24":"tag";state.aeroOn=state.settings.aeroOn!==false;
+  state.time=state.settings.time==="nacht"||state.settings.time==="h24"?"h24":"tag";state.aeroOn=state.settings.aeroOn!==false;state.aptOn=state.settings.aptOn!==false;
   try{const p=JSON.parse(sessionStorage.getItem("tp.pos")||"null");if(p)state.pos=p}catch(e){}
   if(!cryptoOk()){showLock("unlock","Dieser Browser unterstützt keine Entschlüsselung. Bitte die App über https öffnen.");return}
   const central=await fetchCentral();localEnv=store.get(K_LOCAL);
