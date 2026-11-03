@@ -207,6 +207,30 @@ td .nm{font-weight:600}
 .apt span{position:absolute;left:8px;top:-8px;font:600 11px/1 var(--f-mono);color:#1d2329;background:rgba(255,255,255,.85);padding:2px 3px;border-radius:2px;white-space:nowrap;pointer-events:none}
 .apt-nolbl .apt span{display:none}
 .pop table{border-collapse:collapse;font-size:13px}.pop td{padding:1px 8px 1px 0;font-family:var(--f-mono);vertical-align:top}
+.sh{grid-column:1/-1;font-family:var(--f-display);font-weight:700;font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg);border-bottom:2px solid var(--line);padding-bottom:4px;margin-top:8px}
+.sh:first-child{margin-top:0}
+.segx{display:inline-flex;align-self:flex-start;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.segx button{border:0;border-right:1px solid var(--line);background:var(--surface-2);padding:8px 18px;font-weight:600;cursor:pointer}
+.segx button:last-child{border-right:0}
+.segx button[aria-checked="true"]{background:var(--head);color:var(--head-fg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:6px 12px;font-weight:600;font-size:14px;cursor:pointer}
+.chips button[aria-checked="true"]{background:var(--head);color:var(--head-fg);border-color:var(--head)}
+.chips button.all[aria-checked="true"]{background:var(--ok);border-color:var(--ok);color:#fff}
+.chips button:disabled{opacity:.45;cursor:default}
+.accb{display:flex;flex-direction:column;gap:4px;font-size:14px;padding:7px 9px;border-radius:4px;background:var(--surface-2);border-left:3px solid var(--ok)}
+.accb.na{border-left-color:#8a949e}
+.acct{font-weight:600}
+.nah{color:var(--warn);font-weight:600;font-size:13px}
+.hold{display:flex;flex-direction:column;gap:4px}
+.hold .sel{user-select:all}
+.pin.na{background:#9aa3ad!important;opacity:.62}
+.item.na .nm,.item.na .dist{color:var(--muted)}
+.item.na .nm i{background:#9aa3ad!important}
+.next.na{border-top-color:#8a949e}
+.basesed{display:flex;flex-direction:column;gap:6px}
+.baserow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:6px}
+.baserow input{padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);min-width:0}
 .legs{width:100%;border-collapse:collapse;font-size:14px;min-width:0}
 .legs td{padding:5px 4px;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 .legs td:first-child{font-family:var(--f-body);white-space:normal}
@@ -339,7 +363,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
         <input id="fileImport" type="file" accept=".csv,.json,.txt,text/csv,application/json" hidden>
       </div>
       <div class="tablewrap"><table>
-        <thead><tr><th>Tankpunkt</th><th>Verfügbar</th><th>Hinweis</th><th>Koordinaten</th><th>Zeiten / Kontakt</th><th class="edit-only"></th></tr></thead>
+        <thead><tr><th>Tankpunkt</th><th>Verfügbar</th><th>Zugang</th><th>Hinweis</th><th>Koordinaten</th><th>Zeiten / Kontakt</th><th class="edit-only"></th></tr></thead>
         <tbody id="catBody"></tbody>
       </table></div>
       <p class="hint" id="catHint"></p>
@@ -350,29 +374,45 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
 <dialog id="dlgEdit"><form class="dlg" id="formEdit" method="dialog">
   <header><h3 id="editTitle">Tankpunkt</h3><button class="btn" type="button" data-close aria-label="Schließen">✕</button></header>
   <div class="body">
+    <div class="sh">Ort</div>
     <div class="f full"><label for="e_name">Name *</label><input id="e_name" required placeholder="z. B. Flugplatz Musterstadt"></div>
-    <div class="f"><label for="e_icao">ICAO / Kennung</label><input id="e_icao" placeholder="EDxx"></div>
+    <div class="f"><label for="e_icao">ICAO / Kennung</label><input id="e_icao" placeholder="EDxx" maxlength="6" autocapitalize="characters"></div>
     <div class="f"><label for="e_kind">Art</label><select id="e_kind"></select></div>
     <div class="f"><label for="e_lat">Breite (Lat) *</label><input id="e_lat" inputmode="decimal" required placeholder="51.5181"></div>
     <div class="f"><label for="e_lon">Länge (Lon) *</label><input id="e_lon" inputmode="decimal" required placeholder="7.6122"></div>
-    <div class="f full"><button class="btn small" type="button" id="e_usepos">Aktuellen Standort eintragen</button></div>
+    <div class="f full"><div class="row-actions"><button class="btn small" type="button" id="e_pick">Auf Karte wählen</button><button class="btn small" type="button" id="e_usepos">Mein Standort</button><span class="mono muted" id="e_dm" style="font-size:12px;align-self:center"></span></div></div>
     <div class="f full"><label for="e_address">Adresse / Lage</label><input id="e_address"></div>
-    <div class="f"><label for="e_fuel">Kraftstoff</label><input id="e_fuel" placeholder="Jet A-1"></div>
-    <div class="f"><label for="e_avail">Verfügbar</label><select id="e_avail"><option value="tag">Nur Tag</option><option value="h24">24 h (Tag und Nacht)</option></select></div>
-    <div class="f full"><label for="e_hours">Zeiten / Einschränkungen</label><input id="e_hours" placeholder="z. B. H24, Personal Mo–Fr 08–17"></div>
-    <div class="f full"><label for="e_note">Hinweis / Anweisung vor Ort</label><textarea id="e_note" placeholder="Ablauf an der Säule, Anflug, Zufahrt …"></textarea></div>
-    <div class="f"><label for="e_phone">Telefon / Kontakt</label><input id="e_phone"></div>
+
+    <div class="sh">Verfügbarkeit</div>
+    <div class="f full"><div class="segx" id="e_availSeg" role="radiogroup" aria-label="Verfügbarkeit"><button type="button" role="radio" data-v="tag">Nur Tag</button><button type="button" role="radio" data-v="h24">24 h</button></div></div>
+    <div class="f full"><label for="e_hours">Zeiten / Einschränkungen</label><input id="e_hours" placeholder="z. B. H24 · Personal Mo–Fr 08–17 LT · O/R"></div>
+
+    <div class="sh">Zugang</div>
+    <div class="f full"><span class="flbl">Wie wird getankt?</span><div class="chips" id="e_accSeg" role="radiogroup" aria-label="Zugangsart"></div></div>
+    <div class="f full" id="e_basesBox"><span class="flbl">Welche Stationen haben den Zugang?</span><div class="chips" id="e_basesSeg"></div><small class="muted" id="e_basesHint"></small></div>
+    <div class="f full"><label for="e_note">Hinweis / Anweisung vor Ort</label><textarea id="e_note" placeholder="Wo liegt der Schlüssel, Ablauf an der Säule, Zufahrt, Anflug …"></textarea></div>
+
+    <div class="sh">Details</div>
+    <div class="f"><label for="e_fuel">Kraftstoff</label><input id="e_fuel" placeholder="Jet A-1" list="fuelList"><datalist id="fuelList"><option>Jet A-1</option><option>Jet A-1, AVGAS</option><option>AVGAS</option></datalist></div>
+    <div class="f"><label for="e_phone">Telefon Tankstelle / Platz</label><input id="e_phone" inputmode="tel"></div>
     <div class="f"><label for="e_updated">Zuletzt geprüft</label><input id="e_updated" type="date"></div>
+    <div class="f"><span class="flbl">&nbsp;</span><button class="btn small" type="button" id="e_today">Heute geprüft</button></div>
     <div class="f full"><label for="e_notes">Notizen</label><textarea id="e_notes"></textarea></div>
   </div>
-  <footer><button class="btn" type="button" data-close>Abbrechen</button><button class="btn primary" type="submit">Speichern</button></footer>
+  <footer><button class="btn danger" type="button" id="e_del" style="margin-right:auto">Löschen</button><button class="btn" type="button" data-close>Abbrechen</button><button class="btn primary" type="submit">Speichern</button></footer>
 </form></dialog>
+
 
 <dialog id="dlgSettings"><form class="dlg" id="formSettings" method="dialog">
   <header><h3>Einstellungen</h3><button class="btn" type="button" data-close aria-label="Schließen">✕</button></header>
   <div class="body">
     <div class="f full"><label for="s_theme">Darstellung</label>
       <select id="s_theme"><option value="">Wie System</option><option value="dark">Dunkel (Nachtflug)</option><option value="light">Hell</option></select></div>
+    <div class="f full"><label for="s_mybase">Meine Station</label><select id="s_mybase"></select>
+      <small>Tankpunkte, für die deine Station keinen Zugang hat, erscheinen grau. Beim Antippen siehst du, welche Station den Zugang hat.</small></div>
+    <div class="sect edit-only f full"><span class="flbl">Stationen verwalten</span><div class="basesed" id="s_bases"></div>
+      <div class="row-actions"><button class="btn small" type="button" id="s_baseadd">+ Station</button></div>
+      <small>Name und Telefonnummer der Station. Die Nummer erscheint bei Tankpunkten mit Code, damit man dort anrufen kann.</small></div>
     <div class="f full"><span class="flbl">Bearbeitung</span><div class="checks"><label><input type="checkbox" id="s_edit"> Bearbeitungsmodus auf diesem Gerät</label></div>
       <small>Zeigt Neu, Bearbeiten, Import und Export. Für die Crew bleibt die App sonst eine reine Ansicht.</small></div>
     <div class="f full edit-only"><label for="s_aero">openAIP-Schlüssel für Luftraum-Overlay</label><input id="s_aero" autocomplete="off" placeholder="leer = kein Overlay">
@@ -398,7 +438,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 18:25 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 18:45 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -411,6 +451,9 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const KINDS=["Flugplatz","Klinik-Landeplatz","Tanklager","Straßentankstelle","Sonstiges"];
+/* Zugangsarten – „open“: für alle Stationen nutzbar, kein Stationsbezug */
+const ACC={personal:{l:"Personal vor Ort",open:true},frei:{l:"Frei zugänglich",open:true},schluessel:{l:"Schlüssel"},code:{l:"Code"},transponder:{l:"Transponder"},karte:{l:"Tankkarte"}};
+const SAMPLE_BASES=[{id:"b-do",name:"Dortmund",phone:""},{id:"b-ma",name:"Mannheim",phone:""},{id:"b-fr",name:"Freiburg",phone:""}];
 const CENTRAL="stations.enc.json";
 const K_LOCAL="tp.local.v3",K_KEY="tp.key.v3",K_SET="tp.settings.v3";
 const ITER=210000;
@@ -432,8 +475,10 @@ const SAMPLES=[
  {name:"Beispiel N – Raum Riesa",kind:"Flugplatz",lat:51.299,lon:13.214,day:true,night:true,note:"",hours:"H24"},
  {name:"Beispiel O – Raum Freiberg",kind:"Klinik-Landeplatz",lat:50.869,lon:13.489,day:true,night:true,note:"Beispiel: vorher bei der Klinik anmelden.",hours:"H24"}
 ];
+const SAMPLE_ACC=[["code",["b-do"]],["personal",["*"]],["schluessel",["b-do","b-ma"]],["code",["b-ma"]],["personal",["*"]],["transponder",["b-do"]],["schluessel",["b-fr"]],["personal",["*"]],["code",["b-fr","b-ma"]],["transponder",["b-ma"]],["code",["b-do"]],["schluessel",["b-fr"]],["personal",["*"]],["code",["b-ma"]],["transponder",["b-do","b-fr"]]];
+SAMPLES.forEach((s,i)=>{const a=SAMPLE_ACC[i%SAMPLE_ACC.length];s.acc=a[0];s.bases=a[1]});
 
-const state={stations:[],pos:null,time:"tag",view:"karte",sel:null,q:"",placing:false,editId:null,
+const state={bases:[],stations:[],pos:null,time:"tag",view:"karte",sel:null,q:"",placing:false,editId:null,
   key:null,salt:null,iter:ITER,aeroKey:"",aeroOn:false,isSample:false,
   meta:{updated:null,base:null,dirty:false},conflict:false,
   settings:{theme:"",edit:false},gh:{repo:"",token:""}};
@@ -447,7 +492,8 @@ function normalize(s){
   const n=x=>{const v=parseFloat(String(x??"").replace(",","."));return isFinite(v)?v:NaN};
   return {id:s.id||uid(),name:String(s.name||"").trim(),icao:String(s.icao||"").trim().toUpperCase(),kind:s.kind||"Sonstiges",
     lat:n(s.lat),lon:n(s.lon),address:s.address||"",fuel:s.fuel||"Jet A-1",day:!!s.day,night:!!s.night,
-    note:s.note||s.accessNote||"",hours:s.hours||"",phone:s.phone||"",notes:s.notes||"",updated:s.updated||""};
+    note:s.note||s.accessNote||"",hours:s.hours||"",phone:s.phone||"",notes:s.notes||"",updated:s.updated||"",
+    acc:ACC[s.acc]?s.acc:"",bases:Array.isArray(s.bases)&&s.bases.length?s.bases.slice():["*"]};
 }
 const valid=s=>s.name&&isFinite(s.lat)&&isFinite(s.lon)&&Math.abs(s.lat)<=90&&Math.abs(s.lon)<=180;
 
@@ -467,7 +513,7 @@ async function recallKey(saltB64){const r=store.get(K_KEY);if(!r||r.salt!==saltB
   try{return await crypto.subtle.importKey("raw",unb64(r.k),{name:"AES-GCM"},true,["encrypt","decrypt"])}catch(e){return null}}
 async function fetchCentral(){try{const r=await fetch(CENTRAL,{cache:"no-store"});if(!r.ok)return null;const j=await r.json();return j&&j.format==="tankpunkte-enc"?j:null}catch(e){return null}}
 
-async function saveLocal(){if(!state.key)return;try{const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:state.meta,isSample:state.isSample,gh:state.gh,edEnv:state.edEnv});
+async function saveLocal(){if(!state.key)return;try{const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,bases:state.bases,meta:state.meta,isSample:state.isSample,gh:state.gh,edEnv:state.edEnv});
   if(!store.set(K_LOCAL,env))toast("Lokales Speichern nicht möglich – bitte exportieren.")}catch(e){toast("Speichern fehlgeschlagen")}}
 function markChanged(){state.isSample=false;state.meta.updated=new Date().toISOString();state.meta.dirty=true;saveLocal();renderBanners()}
 
@@ -485,7 +531,7 @@ $("#lockForm").addEventListener("submit",async e=>{e.preventDefault();const p=$(
     if(p!==$("#lockPass2").value){err.textContent="Die beiden PINs stimmen nicht überein.";return}
     $("#lockBtn").textContent="Wird eingerichtet …";$("#lockBtn").disabled=true;
     try{state.salt=crypto.getRandomValues(new Uint8Array(16));state.iter=ITER;state.key=await deriveKey(p,state.salt,state.iter);
-      state.stations=SAMPLES.map(normalize);state.isSample=true;state.meta={updated:new Date().toISOString(),base:null,dirty:true};
+      state.stations=SAMPLES.map(normalize);state.bases=SAMPLE_BASES.map(b=>Object.assign({},b));state.isSample=true;state.meta={updated:new Date().toISOString(),base:null,dirty:true};
       state.settings.edit=true;store.set(K_SET,state.settings);
       if($("#lockRemember").checked){try{await rememberKey()}catch(x){}}
       await saveLocal();unlocked()}
@@ -514,9 +560,9 @@ async function loadData(){
   else if(c){useData(c);state.meta={updated:c.meta&&c.meta.updated||null,base:c.meta&&c.meta.updated||null,dirty:false};await saveLocal()}
   else if(l)useData(l);
 }
-function useData(d){if(d.gh)state.gh=d.gh;if(d.edEnv)state.edEnv=d.edEnv;state.stations=(d.stations||[]).map(normalize).filter(valid);state.aeroKey=d.aeroKey||"";state.isSample=!!d.isSample;
+function useData(d){if(d.gh)state.gh=d.gh;state.bases=Array.isArray(d.bases)?d.bases:[];if(d.edEnv)state.edEnv=d.edEnv;state.stations=(d.stations||[]).map(normalize).filter(valid);state.aeroKey=d.aeroKey||"";state.isSample=!!d.isSample;
   if(!state.isSample&&state.stations.length&&state.stations.every(s=>/^Beispiel\b/.test(s.name)))state.isSample=true;
-  if(state.isSample)state.stations=SAMPLES.map(normalize);
+  if(state.isSample){state.stations=SAMPLES.map(normalize);if(!state.bases.length)state.bases=SAMPLE_BASES.map(b=>Object.assign({},b))}
   state.meta=Object.assign({updated:null,base:null,dirty:false},d.meta||{})}
 
 /* ---------- Geo ---------- */
@@ -539,7 +585,7 @@ function sunInfo(){const p=state.pos||{lat:51.2,lon:10.4};const now=new Date();c
 const hhmm=d=>d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
 
 /* ---------- Karte ---------- */
-const pinHtml=(s,sel)=>`<div class="pin ${s.night?"n":"d"} ${sel?"sel":""}">${s.night?"24":"T"}</div>`;
+const pinHtml=(s,sel)=>`<div class="pin ${s.night?"n":"d"} ${sel?"sel":""} ${hasAccess(s)?"":"na"}">${s.night?"24":"T"}</div>`;
 let map=null;
 const MapV={
   init(el){this.m=L.map(el).setView([51.2,10.4],6);
@@ -568,7 +614,7 @@ const MapV={
   setStations(list,sel,cb){
     /* Marker nur neu bauen, wenn sich die Liste ändert – sonst nur das Symbol tauschen, damit ein offenes Popup offen bleibt */
     const icon=s=>L.divIcon({className:"",html:pinHtml(s,s.id===sel),iconSize:[26,26],iconAnchor:[13,13]});
-    const key=list.map(s=>s.id+":"+s.lat+":"+s.lon+":"+s.night+":"+s.name).join("|");
+    const key=list.map(s=>s.id+":"+s.lat+":"+s.lon+":"+s.night+":"+s.name+":"+hasAccess(s)).join("|");
     if(key===this.mkKey&&this.mks){list.forEach(s=>{const mk=this.mks.get(s.id);if(!mk)return;const was=mk._sel===true,now=s.id===sel;if(was!==now){const el=mk.getElement();const pin=el&&el.querySelector(".pin");if(pin)pin.classList.toggle("sel",now);else mk.setIcon(icon(s));mk.setZIndexOffset(now?500:0);mk._sel=now}});return}
     this.layer.clearLayers();this.mks=new Map();this.mkKey=key;
     list.forEach(s=>{const mk=L.marker([s.lat,s.lon],{zIndexOffset:s.id===sel?500:0,icon:icon(s)});mk._sel=s.id===sel;
@@ -614,7 +660,8 @@ const MapV={
   resize(){this.m.invalidateSize()}
 };
 function startMap(){if(!window.L){toast("Kartenbibliothek nicht geladen – Liste funktioniert trotzdem.");return}
-  map=MapV;map.init($("#map"));map.onClick=(lat,lon)=>{if(!state.placing)return;state.placing=false;$("#placingHint").hidden=true;setPos({lat,lon,src:"manuell"},true)};
+  map=MapV;map.init($("#map"));map.onClick=(lat,lon)=>{if(!state.placing)return;const mode=state.placing;state.placing=false;$("#placingHint").hidden=true;$("#placingHint").textContent="Auf die Karte tippen, um die Position zu setzen";
+    if(mode==="edit"){$("#e_lat").value=lat.toFixed(6);$("#e_lon").value=lon.toFixed(6);updDm();$("#dlgEdit").showModal();return}setPos({lat,lon,src:"manuell"},true)};
   updateAero();if(state.route.pts){map.setRoute(state.route.pts,state.route.corr);checkCtrs()}render(!state.route.pts);if(state.route.pts)map.fit(state.route.pts.map(p=>[p.lat,p.lon]))}
 /* Alle CTRs in Deutschland einmal laden (eine Abfrage, 7 Tage zwischengespeichert) – statt Rasterkarte mit allen Luftraumarten */
 const CK="tp.ctr.v2";let ctrAll=null,ctrLoading=null;
@@ -659,7 +706,7 @@ const fuelTxt=f=>f.map(i=>FUEL[i]||("Typ "+i)).join(", ");
 const titleCase=s=>s.toLowerCase().replace(/(^|[\s/\-])([a-zäöü])/g,(m,a,b)=>a+b.toUpperCase()).replace(/Ue/g,"Ü").replace(/Oe/g,"Ö").replace(/Ae/g,"Ä");
 function aptToStation(a,ctr){const jet=a.fuel&&(a.fuel.includes(3)||a.fuel.includes(2));
   return normalize({name:a.icao+" "+titleCase(a.name),icao:a.icao,kind:"Flugplatz",lat:a.lat,lon:a.lon,fuel:a.fuel&&a.fuel.length?fuelTxt(a.fuel):"Jet A-1 (prüfen)",day:true,night:false,
-    hours:"Öffnungs- und Tankzeiten laut AIP AD 2.3/2.4 prüfen",note:(ctr?ctr.name+". ":"")+(jet?"Jet A-1 laut openAIP.":"Kraftstoff in openAIP nicht angegeben – im AIP prüfen."),notes:"Aus openAIP übernommen"})}
+    acc:"personal",hours:"Öffnungs- und Tankzeiten laut AIP AD 2.3/2.4 prüfen",note:(ctr?ctr.name+". ":"")+(jet?"Jet A-1 laut openAIP.":"Kraftstoff in openAIP nicht angegeben – im AIP prüfen."),notes:"Aus openAIP übernommen"})}
 async function takeCtrAirports(btn){if(!state.aeroKey){toast("Erst den openAIP-Schlüssel unter ⚙ eintragen.");return}
   btn.disabled=true;const old=btn.textContent;btn.textContent="Lade openAIP …";
   try{const [apts,ctrs]=await Promise.all([loadApts(),loadCtrs()]);if(state.isSample){state.stations=[];state.isSample=false}
@@ -723,10 +770,23 @@ function startPlacing(){if(!map)return;state.placing=true;$("#placingHint").hidd
 function filtered(){return state.time==="h24"?state.stations.filter(s=>s.night):state.stations.slice()}
 function withDist(list){if(!state.pos)return list.map(s=>({s})).sort((a,b)=>a.s.name.localeCompare(b.s.name,"de"));
   return list.map(s=>{const km=distKm(state.pos,s);return {s,km,nm:km/1.852,crs:bearing(state.pos,s)}}).sort((a,b)=>a.km-b.km)}
+const baseById=id=>state.bases.find(b=>b.id===id);
+const myBase=()=>state.settings.myBase&&baseById(state.settings.myBase)?state.settings.myBase:"";
+const isOpenAcc=s=>!s.acc||(ACC[s.acc]&&ACC[s.acc].open)||s.bases.includes("*");
+const hasAccess=s=>!myBase()||isOpenAcc(s)||s.bases.includes(myBase());
+const holders=s=>isOpenAcc(s)?[]:s.bases.map(baseById).filter(Boolean);
+const accLabel=s=>s.acc?ACC[s.acc].l:"Zugang nicht angegeben";
+function accBlock(s,compact){const hs=holders(s),own=hasAccess(s);
+  let x=`<div class="accb ${own?"":"na"}"><div><span class="acct">${esc(accLabel(s))}</span>${isOpenAcc(s)?(s.acc?` <span class="muted">· alle Stationen</span>`:""):` <span class="muted">· ${esc(hs.map(b=>b.name).join(", ")||"keine Station eingetragen")}</span>`}</div>`;
+  if(!own)x+=`<div class="nah">Deine Station (${esc(baseById(myBase()).name)}) hat hier keinen eigenen Zugang.</div>`;
+  if(!own||(!compact&&!isOpenAcc(s)&&hs.length&&(s.acc==="code"))){const wp=hs.filter(b=>b.phone);
+    if(wp.length)x+=`<div class="hold">${wp.map(b=>`<div><b>${esc(b.name)}</b> <span class="mono sel">${esc(b.phone)}</span> <button class="btn small" type="button" data-act="copytxt" data-t="${esc(b.phone)}">Kopieren</button></div>`).join("")}</div>`;
+    else if(hs.length)x+=`<div class="muted" style="font-size:13px">Telefonnummer der Station unter ⚙ → Stationen eintragen.</div>`}
+  return x+`</div>`}
 const availBadge=s=>s.night?'<span class="b n">24 h</span>':'<span class="b d">nur Tag</span>';
 const badges=s=>`${availBadge(s)}${state.isSample?'<span class="b ex">Beispiel</span>':""}`;
 const routeUrl=s=>"https://www.google.com/maps/search/?api=1&query="+s.lat.toFixed(6)+","+s.lon.toFixed(6);
-function stationPopup(s,extra){return `<div class="pop"><b>${esc(s.name)}</b><div class="badges">${availBadge(s)}</div>${s.hours?`<div class="muted">${esc(s.hours)}</div>`:""}${s.note?`<div>${esc(s.note)}</div>`:""}<div class="coord">${fmtCoord(s)}</div><div class="row-actions">${extra||`<button class="btn small primary" data-act="addroute" data-id="${s.id}">Zur Strecke</button>`}<button class="btn small" data-act="details" data-id="${s.id}">Details</button><a class="btn small" href="${routeUrl(s)}" target="_blank" rel="noopener">Google Maps</a></div></div>`}
+function stationPopup(s,extra){return `<div class="pop"><b>${esc(s.name)}</b><div class="badges">${availBadge(s)}</div>${s.hours?`<div class="muted">${esc(s.hours)}</div>`:""}${accBlock(s,true)}${s.note?`<div>${esc(s.note)}</div>`:""}<div class="coord">${fmtCoord(s)}</div><div class="row-actions">${extra||`<button class="btn small primary" data-act="addroute" data-id="${s.id}">Zur Strecke</button>`}<button class="btn small" data-act="details" data-id="${s.id}">Details</button><a class="btn small" href="${routeUrl(s)}" target="_blank" rel="noopener">Google Maps</a></div></div>`}
 function wpStation(p){return state.stations.find(s=>s.name===p.label)||state.stations.find(s=>Math.abs(s.lat-p.lat)<1e-4&&Math.abs(s.lon-p.lon)<1e-4)}
 function wpPopup(p){const rm=`<button class="btn small danger" data-act="rmwp" data-l="${p.l}">Aus Strecke entfernen</button>`;const st=wpStation(p);
   if(st)return stationPopup(st,rm).replace('<div class="pop">',`<div class="pop"><span class="eyebrow">Wegpunkt ${p.l}</span>`);
@@ -740,7 +800,7 @@ function render(fit){
   document.querySelectorAll("#segTime button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===state.time)));
   const list=withDist(filtered());
   if(state.sel&&!list.some(x=>x.s.id===state.sel))state.sel=null;
-  const top=state.sel?list.find(x=>x.s.id===state.sel):list[0];
+  const top=state.sel?list.find(x=>x.s.id===state.sel):(list.find(x=>hasAccess(x.s))||list[0]);
   if(map){map.setStations(list.map(x=>x.s),top&&top.s.id,id=>{state.sel=id;render()});map.setUser(state.pos);
     if(fit){const pts=[];if(state.pos){pts.push([state.pos.lat,state.pos.lon]);if(list[0])pts.push([list[0].s.lat,list[0].s.lon])}else list.forEach(x=>pts.push([x.s.lat,x.s.lon]));map.fit(pts)}}
   renderSide(list,top,sun);renderCatalog();renderBanners();renderRoute();
@@ -765,10 +825,11 @@ function renderSide(list,top){
   else if(!state.pos)h+=`<div class="next plain"><span class="eyebrow">Standort fehlt</span><div>Für Distanz und Kurs den Standort freigeben oder auf der Karte setzen.</div><div class="row-actions"><button class="btn primary small" data-act="locate">◎ Standort ermitteln</button><button class="btn small" data-act="place">Auf Karte setzen</button></div></div>`;
   if(!top)h+=`<div class="next plain"><span class="eyebrow">${label}</span><div>Kein Tankpunkt passt zum Filter.</div><div class="row-actions"><button class="btn small" data-act="all">Alle Tankpunkte zeigen</button></div></div>`;
   else{const s=top.s,nearest=top===list[0]&&state.pos;
-    h+=`<article class="next"><span class="eyebrow">${nearest?"Nächster Tankpunkt · "+label:(state.sel?"Ausgewählt":label)}</span>
+    h+=`<article class="next ${hasAccess(s)?"":"na"}"><span class="eyebrow">${state.sel?"Ausgewählt":(state.pos?"Nächster Tankpunkt · "+label:label)}${myBase()?" · Station "+esc(baseById(myBase()).name):""}</span>
       <h2>${esc(s.name)}${s.icao?` <span class="mono muted" style="font-size:16px;font-weight:400">${esc(s.icao)}</span>`:""}</h2>
       ${state.pos?`<div class="nav"><div><small>Distanz</small><strong>${fmt(top.nm,top.nm<10?1:0)} NM</strong></div><div><small>Kurs rw</small><strong>${crs(top.crs)}</strong></div><div><small>km</small><strong>${fmt(top.km,top.km<10?1:0)}</strong></div></div>`:""}
       <div class="badges">${badges(s)}</div>
+      ${accBlock(s)}
       ${s.note?`<div class="hintbox">${esc(s.note)}</div>`:""}
       ${s.hours?`<div><span class="muted">Zeiten:</span> ${esc(s.hours)}</div>`:""}
       ${s.phone?`<div><span class="muted">Kontakt:</span> <span class="mono" style="user-select:all">${esc(s.phone)}</span></div>`:""}
@@ -777,14 +838,16 @@ function renderSide(list,top){
       <div class="row-actions"><button class="btn small" data-act="focus" data-id="${s.id}">Auf Karte</button><a class="btn small" href="${routeUrl(s)}" target="_blank" rel="noopener">Google Maps</a><button class="btn small primary" data-act="addroute" data-id="${s.id}">Zur Strecke</button><button class="btn small" data-act="copy" data-id="${s.id}">Koordinaten kopieren</button>${state.settings.edit?`<button class="btn small" data-act="edit" data-id="${s.id}">Bearbeiten</button>`:""}</div>
     </article>`}
   $("#sideTop").innerHTML=h;h="";
-  if(list.length)h+=`<div><div class="eyebrow" style="margin-bottom:6px">${list.length} Tankpunkte${state.pos?" · nach Distanz":""}</div><div class="list">`+
-    list.slice(0,50).map(x=>`<button class="item" data-act="select" data-id="${x.s.id}" aria-current="${top&&x.s.id===top.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${x.km!=null?fmt(x.nm,x.nm<10?1:0)+" NM":""}</span><span class="sub">${esc([x.s.icao,x.s.hours].filter(Boolean).join(" · "))}</span><span class="sub dist">${x.crs!=null?crs(x.crs):""}</span></button>`).join("")+`</div></div>`;
+  const nNa=list.filter(x=>!hasAccess(x.s)).length;
+  if(list.length)h+=`<div><div class="eyebrow" style="margin-bottom:6px">${list.length} Tankpunkte${nNa?" · "+nNa+" ohne eigenen Zugang":""}${state.pos?" · nach Distanz":""}</div><div class="list">`+
+    list.slice(0,50).map(x=>`<button class="item ${hasAccess(x.s)?"":"na"}" data-act="select" data-id="${x.s.id}" aria-current="${top&&x.s.id===top.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${x.km!=null?fmt(x.nm,x.nm<10?1:0)+" NM":""}</span><span class="sub">${esc([x.s.icao,x.s.acc?ACC[x.s.acc].l:"",hasAccess(x.s)?"":"Zugang: "+holders(x.s).map(b=>b.name).join(", ")].filter(Boolean).join(" · "))}</span><span class="sub dist">${x.crs!=null?crs(x.crs):""}</span></button>`).join("")+`</div></div>`;
   $("#sideDyn").innerHTML=h}
 function renderCatalog(){const q=state.q.trim().toLowerCase(),ed=state.settings.edit;
-  const rows=state.stations.filter(s=>!q||[s.name,s.icao,s.address,s.notes,s.note,s.hours,s.kind].join(" ").toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name,"de"));
+  const rows=state.stations.filter(s=>!q||[s.name,s.icao,s.address,s.notes,s.note,s.hours,s.kind,accLabel(s),holders(s).map(b=>b.name).join(" ")].join(" ").toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name,"de"));
   $("#catBody").innerHTML=rows.length?rows.map(s=>`<tr>
     <td><div class="nm">${esc(s.name)}</div><div class="muted">${esc([s.icao,s.kind,s.fuel].filter(Boolean).join(" · "))}</div>${s.address?`<div class="muted">${esc(s.address)}</div>`:""}</td>
     <td><div class="badges">${availBadge(s)}</div></td>
+    <td><div><b>${esc(accLabel(s))}</b></div><div class="muted">${isOpenAcc(s)?"alle Stationen":esc(holders(s).map(b=>b.name).join(", "))}</div></td>
     <td><div style="max-width:36ch">${esc(s.note)}</div></td>
     <td class="coord">${fmtCoord(s)}</td>
     <td>${esc(s.hours)}${s.phone?`<div class="mono">${esc(s.phone)}</div>`:""}${s.updated?`<div class="muted">geprüft ${esc(new Date(s.updated).toLocaleDateString("de-DE"))}</div>`:""}</td>
@@ -814,6 +877,7 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]
     case "takeapt":{if(map&&map.m)map.m.closePopup();const ap=(aptAll||[]).find(a=>a.icao===b.dataset.icao);if(ap){const ctr=(ctrAll||[]).find(c=>routeHitsGeom([{lat:ap.lat,lon:ap.lon}],c.geometry));
       if(state.isSample){state.stations=[];state.isSample=false}const st=aptToStation(ap,ctr);state.stations.push(st);markChanged();render();openEdit(st);toast("Übernommen – Zeiten und 24 h eintragen, dann speichern")}}break;
     case "addapt":{if(map&&map.m)map.m.closePopup();const ap=(aptAll||[]).find(a=>a.icao===b.dataset.icao);if(ap)addToRoute({name:ap.icao,lat:ap.lat,lon:ap.lon});}break;
+    case "copytxt":copy(b.dataset.t);break;
     case "addroute":if(s){if(map&&map.m)map.m.closePopup();addToRoute(s)}break;
     case "details":if(s){if(map&&map.m)map.m.closePopup();state.sel=id;render();const d=$("#sideTop");if(d&&innerWidth<920)d.scrollIntoView({behavior:"smooth",block:"start"})}break;
     case "publish":publish(b);break;
@@ -827,24 +891,50 @@ let toastT;function toast(t){const el=$("#toast");el.textContent=t;el.hidden=fal
 function persistUi(){state.settings.time=state.time;store.set(K_SET,state.settings)}
 
 /* Bearbeiten */
+const ed={avail:"tag",acc:"",bases:["*"]};
+function renderEdChips(){document.querySelectorAll("#e_availSeg button").forEach(b=>b.setAttribute("aria-checked",String(b.dataset.v===ed.avail)));
+  $("#e_accSeg").innerHTML=Object.entries(ACC).map(([k,v])=>`<button type="button" role="radio" data-v="${k}" aria-checked="${ed.acc===k}">${v.l}</button>`).join("");
+  const open=!ed.acc||ACC[ed.acc].open,all=ed.bases.includes("*");
+  $("#e_basesSeg").innerHTML=`<button type="button" class="all" data-b="*" aria-checked="${all}" ${open?"disabled":""}>Alle Stationen</button>`+state.bases.map(b=>`<button type="button" data-b="${b.id}" aria-checked="${!all&&ed.bases.includes(b.id)}" ${open?"disabled":""}>${esc(b.name||"(ohne Namen)")}</button>`).join("");
+  $("#e_basesHint").textContent=open?(ed.acc?"Bei „"+ACC[ed.acc].l+"“ kann jede Station tanken.":"Erst die Zugangsart wählen."):(state.bases.length?"Eine oder mehrere Stationen antippen.":"Noch keine Stationen angelegt – unter ⚙ → Stationen verwalten.")}
+$("#e_availSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;ed.avail=b.dataset.v;renderEdChips()});
+$("#e_accSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;ed.acc=b.dataset.v;if(ACC[ed.acc].open)ed.bases=["*"];else if(ed.bases.includes("*")&&myBase())ed.bases=[myBase()];renderEdChips()});
+$("#e_basesSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b||b.disabled)return;const id=b.dataset.b;
+  if(id==="*")ed.bases=["*"];else{ed.bases=ed.bases.filter(x=>x!=="*");ed.bases=ed.bases.includes(id)?ed.bases.filter(x=>x!==id):ed.bases.concat(id);if(!ed.bases.length)ed.bases=["*"]}renderEdChips()});
+function updDm(){const la=parseFloat($("#e_lat").value.replace(",",".")),lo=parseFloat($("#e_lon").value.replace(",","."));$("#e_dm").textContent=isFinite(la)&&isFinite(lo)?fmtCoord({lat:la,lon:lo}):""}
+$("#e_lat").addEventListener("input",updDm);$("#e_lon").addEventListener("input",updDm);
 function openEdit(s){if(!state.settings.edit)return;state.editId=s?s.id:null;$("#editTitle").textContent=s?"Tankpunkt bearbeiten":"Neuer Tankpunkt";
   const v=s||normalize({day:true,night:false,kind:"Flugplatz"});
   $("#e_name").value=v.name;$("#e_icao").value=v.icao;$("#e_kind").value=KINDS.includes(v.kind)?v.kind:"Sonstiges";
   $("#e_lat").value=isFinite(v.lat)?v.lat:"";$("#e_lon").value=isFinite(v.lon)?v.lon:"";$("#e_address").value=v.address;$("#e_fuel").value=v.fuel;
-  $("#e_avail").value=v.night?"h24":"tag";$("#e_hours").value=v.hours;$("#e_note").value=v.note;$("#e_phone").value=v.phone;$("#e_notes").value=v.notes;$("#e_updated").value=v.updated||"";
+  $("#e_hours").value=v.hours;$("#e_note").value=v.note;$("#e_phone").value=v.phone;$("#e_notes").value=v.notes;$("#e_updated").value=v.updated||"";
+  ed.avail=v.night?"h24":"tag";ed.acc=v.acc;ed.bases=v.bases.slice();$("#e_del").hidden=!s;renderEdChips();updDm();
   $("#dlgEdit").showModal()}
 $("#formEdit").addEventListener("submit",e=>{e.preventDefault();
   const o=normalize({id:state.editId||undefined,name:$("#e_name").value,icao:$("#e_icao").value,kind:$("#e_kind").value,lat:$("#e_lat").value,lon:$("#e_lon").value,address:$("#e_address").value,fuel:$("#e_fuel").value||"Jet A-1",
-    day:true,night:$("#e_avail").value==="h24",hours:$("#e_hours").value,note:$("#e_note").value,phone:$("#e_phone").value,notes:$("#e_notes").value,updated:$("#e_updated").value});
+    day:true,night:ed.avail==="h24",hours:$("#e_hours").value,note:$("#e_note").value,phone:$("#e_phone").value,notes:$("#e_notes").value,updated:$("#e_updated").value,acc:ed.acc,bases:ed.bases});
   if(!valid(o)){toast("Name und gültige Koordinaten (z. B. 51.5181 / 7.6122) eintragen.");return}
-  if(state.isSample)state.stations=[];
+  if(!o.acc){toast("Bitte die Zugangsart wählen.");return}
+  if(state.isSample){state.stations=[];state.isSample=false}
   const i=state.stations.findIndex(x=>x.id===o.id);if(i>=0)state.stations[i]=o;else state.stations.push(o);
   markChanged();$("#dlgEdit").close();state.sel=o.id;render();toast("Gespeichert")});
-$("#e_usepos").addEventListener("click",()=>{if(!state.pos){toast("Noch kein Standort – erst „Standort“ antippen.");return}$("#e_lat").value=state.pos.lat.toFixed(6);$("#e_lon").value=state.pos.lon.toFixed(6)});
+$("#e_today").addEventListener("click",()=>{$("#e_updated").value=new Date().toISOString().slice(0,10)});
+$("#e_del").addEventListener("click",function(){if(this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Wirklich löschen?";setTimeout(()=>{this.dataset.arm="";this.textContent="Löschen"},3500);return}
+  this.dataset.arm="";this.textContent="Löschen";state.stations=state.stations.filter(x=>x.id!==state.editId);markChanged();$("#dlgEdit").close();state.sel=null;render();toast("Gelöscht")});
+$("#e_pick").addEventListener("click",()=>{if(!map){toast("Karte nicht geladen.");return}$("#dlgEdit").close();state.placing="edit";$("#placingHint").textContent="Auf die Karte tippen, um den Tankpunkt zu setzen";$("#placingHint").hidden=false;setView("karte")});
+$("#e_usepos").addEventListener("click",()=>{if(!state.pos){toast("Noch kein Standort – erst „Standort“ antippen.");return}$("#e_lat").value=state.pos.lat.toFixed(6);$("#e_lon").value=state.pos.lon.toFixed(6);updDm()});
 document.querySelectorAll("dialog [data-close]").forEach(b=>b.addEventListener("click",()=>b.closest("dialog").close()));
 
 /* Einstellungen */
-$("#btnSettings").addEventListener("click",()=>{renderEdInfo();$("#s_theme").value=state.settings.theme||"";$("#s_edit").checked=!!state.settings.edit;$("#s_aero").value=state.aeroKey;$("#s_repo").value=state.gh.repo||guessRepo();$("#s_token").value=state.gh.token||"";$("#s_np1").value="";$("#s_np2").value="";$("#dlgSettings").showModal()});
+function renderBaseSettings(){const sel=$("#s_mybase");sel.innerHTML=`<option value="">Alle Stationen (kein Filter)</option>`+state.bases.filter(b=>b.name).map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join("");sel.value=myBase();
+  $("#s_bases").innerHTML=state.bases.map(b=>`<div class="baserow"><input data-bid="${b.id}" data-f="name" value="${esc(b.name)}" placeholder="Stationsname" aria-label="Stationsname"><input data-bid="${b.id}" data-f="phone" value="${esc(b.phone||"")}" placeholder="Telefon" inputmode="tel" aria-label="Telefon"><button class="btn small danger" type="button" data-bdel="${b.id}" aria-label="Station entfernen">✕</button></div>`).join("")||`<div class="muted" style="font-size:13px">Noch keine Stationen.</div>`}
+$("#s_mybase").addEventListener("change",e=>{state.settings.myBase=e.target.value;store.set(K_SET,state.settings);state.sel=null;render()});
+$("#s_bases").addEventListener("change",e=>{const i=e.target;if(!i.dataset.bid)return;const b=baseById(i.dataset.bid);if(!b)return;b[i.dataset.f]=i.value.trim();state.isSample=false;markChanged();renderBaseSettings();render()});
+$("#s_bases").addEventListener("click",e=>{const d=e.target.closest("[data-bdel]");if(!d)return;if(d.dataset.arm!=="1"){d.dataset.arm="1";d.textContent="Sicher?";return}
+  const id=d.dataset.bdel;state.bases=state.bases.filter(b=>b.id!==id);state.stations.forEach(s=>{s.bases=s.bases.filter(x=>x!==id);if(!s.bases.length)s.bases=["*"]});if(state.settings.myBase===id){state.settings.myBase="";store.set(K_SET,state.settings)}
+  markChanged();renderBaseSettings();render()});
+$("#s_baseadd").addEventListener("click",()=>{state.bases.push({id:"b-"+uid(),name:"",phone:""});renderBaseSettings();const ins=$("#s_bases").querySelectorAll('input[data-f="name"]');ins[ins.length-1].focus()});
+$("#btnSettings").addEventListener("click",()=>{renderEdInfo();renderBaseSettings();$("#s_theme").value=state.settings.theme||"";$("#s_edit").checked=!!state.settings.edit;$("#s_aero").value=state.aeroKey;$("#s_repo").value=state.gh.repo||guessRepo();$("#s_token").value=state.gh.token||"";$("#s_np1").value="";$("#s_np2").value="";$("#dlgSettings").showModal()});
 $("#s_edit").addEventListener("change",e=>{state.settings.edit=e.target.checked;applyEditMode()});
 $("#formSettings").addEventListener("submit",e=>{e.preventDefault();
   state.settings.theme=$("#s_theme").value;state.settings.edit=$("#s_edit").checked;store.set(K_SET,state.settings);applyTheme();applyEditMode();
@@ -878,7 +968,7 @@ $("#s_reload").addEventListener("click",async()=>{const env=await fetchCentral()
   catch(x){toast("Zentrale Liste konnte nicht entschlüsselt werden.")}
   $("#dlgSettings").close()});
 $("#s_demo").addEventListener("click",async function(){if(!state.isSample&&this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Eigene Liste ersetzen?";return}
-  this.dataset.arm="";this.textContent="Beispieldaten laden";state.stations=SAMPLES.map(normalize);state.isSample=true;await saveLocal();$("#dlgSettings").close();render(true);toast(state.stations.length+" Beispiel-Tankpunkte geladen")});
+  this.dataset.arm="";this.textContent="Beispieldaten laden";state.stations=SAMPLES.map(normalize);if(!state.bases.length)state.bases=SAMPLE_BASES.map(b=>Object.assign({},b));state.isSample=true;await saveLocal();$("#dlgSettings").close();render(true);toast(state.stations.length+" Beispiel-Tankpunkte geladen")});
 $("#s_oaipcheck").addEventListener("click",async function(){const key=$("#s_aero").value.trim()||state.aeroKey,out=$("#s_oaipout");
   if(!key){toast("Erst den openAIP-Schlüssel eintragen.");return}
   this.disabled=true;this.textContent="Prüfe …";out.hidden=false;out.value="Lade Flugplätze von openAIP …";
@@ -907,7 +997,7 @@ function parseCSV(text){text=text.replace(/^﻿/,"");const first=text.split(/\r?
 const MAP={name:["name","bezeichnung","tankstelle","tankpunkt"],icao:["icao","kennung","kürzel"],kind:["typ","art","kategorie"],lat:["lat","breite","breitengrad","latitude","nord"],lon:["lon","lng","länge","laenge","längengrad","longitude","ost"],
   coords:["koordinaten","position"],address:["adresse","anschrift","ort","lage"],fuel:["kraftstoff","fuel","treibstoff"],day:["tag","tagverfügbar","tagsüber","tags"],night:["nacht","nachtverfügbar","nachts","h","std","stunden","rundumdieuhr"],
   hours:["zeiten","öffnungszeiten","uhrzeit","verfügbarkeit"],note:["hinweis","anweisung","anweisungen","zugangshinweis","hinweisvorort","ablauf"],
-  phone:["telefon","tel","kontakt","telefonnummer"],notes:["notizen","notiz","bemerkung","bemerkungen","info"],updated:["geprüft","geprueft","stand","aktualisiert"]};
+  phone:["telefon","tel","kontakt","telefonnummer"],acc:["zugang","zugangsart","betankung"],bases:["stationen","station","zugangstationen"],notes:["notizen","notiz","bemerkung","bemerkungen","info"],updated:["geprüft","geprueft","stand","aktualisiert"]};
 const nk=s=>String(s).toLowerCase().replace(/[^a-zäöüß]/g,"");
 const truthy=v=>/^(ja|j|x|1|true|yes|y|✓|h24|24h)$/i.test(String(v).trim());
 function rowsToStations(rows){const head=rows[0].map(nk);const idx={};for(const k in MAP){const i=head.findIndex(h=>MAP[k].includes(h));if(i>=0)idx[k]=i}
@@ -915,7 +1005,9 @@ function rowsToStations(rows){const head=rows[0].map(nk);const idx={};for(const 
   return rows.slice(1).map(r=>{const g=k=>idx[k]!=null?(r[idx[k]]||"").trim():"";let lat=g("lat"),lon=g("lon");
     if((!lat||!lon)&&g("coords")){const m=g("coords").match(/(-?\d+(?:[.,]\d+)?)\D+(-?\d+(?:[.,]\d+)?)/);if(m){lat=m[1];lon=m[2]}}
     const day=g("day"),night=g("night");
-    return normalize({name:g("name"),icao:g("icao"),kind:g("kind"),lat,lon,address:g("address"),fuel:g("fuel"),day:day?truthy(day):true,night:night?truthy(night):/h24|24/i.test(g("hours")),hours:g("hours"),note:g("note"),phone:g("phone"),notes:g("notes"),updated:g("updated")})}).filter(valid)}
+    const accRaw=g("acc").toLowerCase(),acc=accRaw?(Object.keys(ACC).find(k=>k===accRaw||ACC[k].l.toLowerCase().startsWith(accRaw))||(accRaw.startsWith("pers")?"personal":"")):"";
+    const bn=g("bases"),bases=!bn||/^alle$/i.test(bn)?["*"]:bn.split(/[,/;|]/).map(x=>x.trim()).filter(Boolean).map(n=>{let b=state.bases.find(x=>x.name.toLowerCase()===n.toLowerCase());if(!b){b={id:"b-"+uid(),name:n,phone:""};state.bases.push(b)}return b.id});
+    return normalize({acc,bases,name:g("name"),icao:g("icao"),kind:g("kind"),lat,lon,address:g("address"),fuel:g("fuel"),day:day?truthy(day):true,night:night?truthy(night):/h24|24/i.test(g("hours")),hours:g("hours"),note:g("note"),phone:g("phone"),notes:g("notes"),updated:g("updated")})}).filter(valid)}
 $("#fileImport").addEventListener("change",async e=>{const file=e.target.files[0];e.target.value="";if(!file)return;
   try{const txt=await file.text();let arr;
     if(/^\s*[\[{]/.test(txt)){const j=JSON.parse(txt);if(j.format==="tankpunkte-enc")throw new Error("Verschlüsselte Datei – bitte als "+CENTRAL+" auf den Server legen.");arr=(Array.isArray(j)?j:(j.stations||[])).map(normalize).filter(valid)}
@@ -927,7 +1019,7 @@ $("#fileImport").addEventListener("change",async e=>{const file=e.target.files[0
   catch(err){toast("Import fehlgeschlagen: "+err.message)}});
 function download(name,text,type){const blob=new Blob([text],{type});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 async function exportEnc(){if(!state.key)return;const updated=state.meta.updated||new Date().toISOString();
-  const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:{updated},isSample:false,edEnv:state.edEnv});
+  const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,bases:state.bases,meta:{updated},isSample:false,edEnv:state.edEnv});
   download(CENTRAL,JSON.stringify(env),"application/json");state.meta.updated=updated;state.meta.base=updated;state.meta.dirty=false;state.isSample=false;await saveLocal();renderBanners();
   toast("Exportiert – Datei im GitHub-Repository ersetzen.")}
 /* Direkt zu GitHub veröffentlichen (Contents-API, Token nur lokal) */
@@ -936,7 +1028,7 @@ const ghReady=()=>!!(state.gh&&state.gh.repo&&state.gh.token);
 async function publish(btn){if(!ghReady()){toast("Erst unter ⚙ GitHub verbinden (Repository + Token).");return}
   const old=btn&&btn.textContent;if(btn){btn.disabled=true;btn.textContent="Wird veröffentlicht …"}
   try{const updated=state.meta.updated||new Date().toISOString();
-    const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:{updated},isSample:false,edEnv:state.edEnv});
+    const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,bases:state.bases,meta:{updated},isSample:false,edEnv:state.edEnv});
     const api="https://api.github.com/repos/"+state.gh.repo+"/contents/"+CENTRAL;
     const hd={"Authorization":"Bearer "+state.gh.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};
     let sha;const g=await fetch(api+"?t="+Date.now(),{headers:hd,cache:"no-store"});
@@ -951,8 +1043,8 @@ async function publish(btn){if(!ghReady()){toast("Erst unter ⚙ GitHub verbinde
 $("#btnCtrApts").addEventListener("click",e=>takeCtrAirports(e.currentTarget));
 $("#btnPublish").addEventListener("click",e=>publish(e.currentTarget));
 const csvCell=v=>{v=String(v??"");return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
-const CSV_HEAD=["Name","ICAO","Art","Lat","Lon","Adresse","Kraftstoff","Tag","24h","Zeiten","Hinweis","Telefon","Notizen","Geprüft"];
-const toRow=s=>[s.name,s.icao,s.kind,String(s.lat).replace(".",","),String(s.lon).replace(".",","),s.address,s.fuel,s.day?"ja":"nein",s.night?"ja":"nein",s.hours,s.note,s.phone,s.notes,s.updated];
+const CSV_HEAD=["Name","ICAO","Art","Lat","Lon","Adresse","Kraftstoff","Tag","24h","Zeiten","Zugang","Stationen","Hinweis","Telefon","Notizen","Geprüft"];
+const toRow=s=>[s.name,s.icao,s.kind,String(s.lat).replace(".",","),String(s.lon).replace(".",","),s.address,s.fuel,s.day?"ja":"nein",s.night?"ja":"nein",s.hours,s.acc?ACC[s.acc].l:"",isOpenAcc(s)?"alle":holders(s).map(b=>b.name).join(", "),s.note,s.phone,s.notes,s.updated];
 $("#btnExportEnc").addEventListener("click",exportEnc);
 $("#btnExportCsv").addEventListener("click",()=>download("tankpunkte-"+new Date().toISOString().slice(0,10)+".csv","﻿"+[CSV_HEAD,...state.stations.map(toRow)].map(r=>r.map(csvCell).join(";")).join("\r\n"),"text/csv"));
 $("#btnTemplate").addEventListener("click",()=>download("tankpunkte-vorlage.csv","﻿"+[CSV_HEAD,toRow(normalize(SAMPLES[0]))].map(r=>r.map(csvCell).join(";")).join("\r\n"),"text/csv"));
@@ -1057,9 +1149,9 @@ function renderRoute(){const pts=state.route.pts,out=$("#routeOut");if(!out)retu
     $("#routeSum").textContent=pts.map(p=>p.l).join("→")+" · "+fmt(tot/1.852,0)+" NM";
     if(ctrState.list)h+=`<div class="eyebrow">Geschnittene Kontrollzonen · ${ctrState.list.length}</div>`+(ctrState.list.length?`<div class="ctrl">${ctrState.list.map(c=>`<div class="ctr"><b>${esc(c.name)}</b><span>${esc(c.lim)}</span></div>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Die Linie schneidet keine CTR.</div>`);
     if(ctrState.msg)h+=`<div class="muted" style="font-size:13px">${esc(ctrState.msg)}</div>`;
-    const near=filtered().map(s=>Object.assign({s},offRoute(s,pts))).filter(x=>x.nm<=state.route.corr).sort((a,b)=>a.leg-b.leg||a.nm-b.nm).slice(0,25);
+    const near=filtered().map(s=>Object.assign({s},offRoute(s,pts))).filter(x=>x.nm<=state.route.corr).sort((a,b)=>(hasAccess(b.s)-hasAccess(a.s))||a.leg-b.leg||a.nm-b.nm).slice(0,25);
     const lbl={tag:"Tag",h24:"24 h"}[state.time];
-    h+=`<details class="near" id="nearBox" ${state.route.nearOpen?"open":""}><summary><span class="eyebrow">Tankpunkte an der Strecke · ≤ ${state.route.corr} NM · ${lbl}</span><span class="cnt">${near.length}</span></summary>`+(near.length?`<div class="list">${near.map(x=>`<button class="item" data-act="select" data-id="${x.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${fmt(x.nm,1)} NM</span><span class="sub">Abschnitt ${pts[x.leg].l} → ${pts[x.leg+1].l}${x.s.hours?" · "+esc(x.s.hours):""}</span><span></span></button>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Keine passenden Tankpunkte im Korridor.</div>`)+`</details>`;
+    h+=`<details class="near" id="nearBox" ${state.route.nearOpen?"open":""}><summary><span class="eyebrow">Tankpunkte an der Strecke · ≤ ${state.route.corr} NM · ${lbl}</span><span class="cnt">${near.length}</span></summary>`+(near.length?`<div class="list">${near.map(x=>`<button class="item ${hasAccess(x.s)?"":"na"}" data-act="select" data-id="${x.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${fmt(x.nm,1)} NM</span><span class="sub">${hasAccess(x.s)?"":"Kein eigener Zugang · "}Abschnitt ${pts[x.leg].l} → ${pts[x.leg+1].l}${x.s.hours?" · "+esc(x.s.hours):""}</span><span></span></button>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Keine passenden Tankpunkte im Korridor.</div>`)+`</details>`;
   } else $("#routeSum").textContent="Luftlinie A → B → C";
   out.innerHTML=h}
 if(!CORR.includes(state.route.corr))state.route.corr=10;renderWps();renderCorr();if(state.route.pts)$("#routeBox").open=true;
