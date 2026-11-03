@@ -375,7 +375,10 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
     <div class="f full"><span class="flbl">Bearbeitung</span><div class="checks"><label><input type="checkbox" id="s_edit"> Bearbeitungsmodus auf diesem Gerät</label></div>
       <small>Zeigt Neu, Bearbeiten, Import und Export. Für die Crew bleibt die App sonst eine reine Ansicht.</small></div>
     <div class="f full edit-only"><label for="s_aero">openAIP-Schlüssel für Luftraum-Overlay</label><input id="s_aero" autocomplete="off" placeholder="leer = kein Overlay">
-      <small>Kostenlos bei openaip.net. Wird verschlüsselt mit der Liste verteilt.</small></div>
+      <small>Kostenlos bei openaip.net. Wird verschlüsselt mit der Liste verteilt.</small>
+      <div class="row-actions"><button class="btn small" type="button" id="s_oaipcheck">openAIP-Datencheck</button></div>
+      <textarea id="s_oaipout" readonly hidden style="min-height:180px;font:12px/1.35 var(--f-mono)"></textarea>
+      <div class="row-actions"><button class="btn small" type="button" id="s_oaipcopy" hidden>Ergebnis kopieren</button></div></div>
     <div class="sect edit-only f full"><span class="flbl">GitHub-Verbindung (nur Bearbeiter)</span>
       <div class="row-actions"><input id="s_repo" placeholder="benutzer/repository" autocomplete="off" style="flex:1 1 180px"><input id="s_token" type="password" placeholder="Zugriffstoken (github_pat_…)" autocomplete="off" style="flex:1 1 220px"></div>
       <small>Fein-granularer Token, nur für dieses eine Repository, Berechtigung „Contents: Read and write“. Bleibt verschlüsselt auf diesem Gerät und wird nie mit der Liste verteilt.</small></div>
@@ -388,7 +391,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 17:15 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 17:55 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -836,6 +839,20 @@ $("#s_reload").addEventListener("click",async()=>{const env=await fetchCentral()
   $("#dlgSettings").close()});
 $("#s_demo").addEventListener("click",async function(){if(!state.isSample&&this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Eigene Liste ersetzen?";return}
   this.dataset.arm="";this.textContent="Beispieldaten laden";state.stations=SAMPLES.map(normalize);state.isSample=true;await saveLocal();$("#dlgSettings").close();render(true);toast(state.stations.length+" Beispiel-Tankpunkte geladen")});
+$("#s_oaipcheck").addEventListener("click",async function(){const key=$("#s_aero").value.trim()||state.aeroKey,out=$("#s_oaipout");
+  if(!key){toast("Erst den openAIP-Schlüssel eintragen.");return}
+  this.disabled=true;this.textContent="Prüfe …";out.hidden=false;out.value="Lade Flugplätze von openAIP …";
+  try{const want=["EDLW","EDDK","EDDC","EDDP","EDDL","EDLP"],found=[];let page=1,pages=1;
+    do{const r=await fetch("https://api.core.openaip.net/api/airports?country=DE&limit=500&page="+page+"&apiKey="+encodeURIComponent(key));
+      if(!r.ok)throw new Error("HTTP "+r.status);const j=await r.json();pages=j.totalPages||1;
+      (j.items||[]).forEach(a=>{if(want.includes(a.icaoCode))found.push(a)});page++}while(page<=pages&&page<=10&&found.length<want.length);
+    const slim=a=>{const o=Object.assign({},a);delete o.geometry;delete o._id;delete o.createdAt;delete o.updatedAt;delete o.createdBy;delete o.updatedBy;
+      if(o.runways)o.runways=o.runways.slice(0,1);if(o.frequencies)o.frequencies=o.frequencies.slice(0,2);if(o.images)delete o.images;return o};
+    out.value="openAIP-Datencheck · "+new Date().toLocaleString("de-DE")+"\nGefunden: "+found.map(a=>a.icaoCode).join(", ")+"\nFelder: "+[...new Set(found.flatMap(a=>Object.keys(a)))].join(", ")+"\n\n"+found.map(a=>JSON.stringify(slim(a),null,1)).join("\n\n");
+    $("#s_oaipcopy").hidden=false}
+  catch(x){out.value="Fehler: "+x.message}
+  finally{this.disabled=false;this.textContent="openAIP-Datencheck"}});
+$("#s_oaipcopy").addEventListener("click",()=>{const t=$("#s_oaipout").value;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>toast("Kopiert – jetzt im Chat einfügen"),()=>{$("#s_oaipout").select();toast("Markiert – mit Strg/Cmd+C kopieren")});else{$("#s_oaipout").select();toast("Markiert – kopieren")}});
 $("#s_lock").addEventListener("click",()=>{store.del(K_KEY);location.reload()});
 $("#s_reset").addEventListener("click",function(){if(this.dataset.arm!=="1"){this.dataset.arm="1";this.textContent="Wirklich zurücksetzen?";return}
   store.del(K_LOCAL);store.del(K_KEY);store.del(K_SET);location.reload()});
