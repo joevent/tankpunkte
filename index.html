@@ -95,6 +95,10 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 #map{position:absolute;inset:0;background:var(--surface-2)}
 .legend{position:absolute;left:10px;bottom:10px;z-index:500;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:5px 9px;font-size:12px;display:flex;gap:10px;align-items:center}
 .legend span{display:inline-flex;align-items:center;gap:5px}
+.legend{flex-wrap:wrap;max-width:calc(100% - 20px)}
+.lg-route{width:16px;height:4px;background:#d3121f;border-radius:2px;display:inline-block}
+.lg-corr{width:16px;height:9px;background:rgba(91,107,124,.3);border-top:1.5px dashed #3b4754;border-bottom:1.5px dashed #3b4754;display:inline-block}
+.lg-ctr{width:14px;height:10px;border:2px dashed #6a3fb5;background:rgba(106,63,181,.12);border-radius:2px;display:inline-block}
 .maptools{position:absolute;right:10px;top:10px;z-index:500;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
 .maptools .btn{box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .maptools .btn[aria-pressed="true"]{background:var(--head);color:var(--head-fg);border-color:var(--head)}
@@ -182,7 +186,7 @@ td .nm{font-weight:600}
 .corr-seg button:last-child{border-right:0}
 .corr-seg button[aria-pressed="true"]{background:var(--head);color:var(--head-fg)}
 .ctrl{display:flex;flex-direction:column;gap:4px}
-.ctr{display:flex;gap:8px;align-items:baseline;font-size:14px;padding:6px 9px;border-left:4px solid #b04ad6;background:var(--surface-2);border-radius:3px}
+.ctr{display:flex;gap:8px;align-items:baseline;font-size:14px;padding:6px 9px;border-left:4px solid #7c4dd1;background:var(--surface-2);border-radius:3px}
 .ctr b{font-weight:600}
 .ctr span{color:var(--muted);font-family:var(--f-mono);font-size:12px;margin-left:auto;white-space:nowrap}
 .pop{display:flex;flex-direction:column;gap:6px;min-width:180px;font:14px/1.35 var(--f-body)}
@@ -198,7 +202,7 @@ td .nm{font-weight:600}
 .near .cnt{margin-left:auto;font:600 12px/1 var(--f-mono);background:var(--head);color:var(--head-fg);border-radius:10px;padding:3px 8px}
 .near[open] .list{margin-top:6px}
 .apt{position:relative;width:0;height:0}
-.apt i{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#fff;border:2.5px solid #2b4a8e;box-sizing:border-box;box-shadow:0 0 0 1px rgba(255,255,255,.7)}
+.apt i{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#fff;border:2.5px solid #1e252c;box-sizing:border-box;box-shadow:0 0 0 1px rgba(255,255,255,.7)}
 .apt.mil i{border-color:#556b2f}
 .apt span{position:absolute;left:8px;top:-8px;font:600 11px/1 var(--f-mono);color:#1d2329;background:rgba(255,255,255,.85);padding:2px 3px;border-radius:2px;white-space:nowrap;pointer-events:none}
 .apt-nolbl .apt span{display:none}
@@ -301,7 +305,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
             <label class="lrow"><input type="checkbox" id="bordChk"> <span>Staatsgrenzen</span></label>
             <small class="muted" id="aeroHint" hidden>Schlüssel unter ⚙ eintragen.</small>
           </div></div>
-        <div class="legend"><span><i class="dot-n"></i>24 h</span><span><i class="dot-d"></i>nur Tag</span></div>
+        <div class="legend"><span><i class="dot-n"></i>24 h</span><span><i class="dot-d"></i>nur Tag</span><span><i class="lg-route"></i>Strecke</span><span><i class="lg-corr"></i>Korridor</span><span><i class="lg-ctr"></i>CTR</span></div>
         <div class="placing-hint" id="placingHint" hidden>Auf die Karte tippen, um die Position zu setzen</div>
       </div>
       <aside class="side wrap" id="side">
@@ -384,7 +388,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 17:05 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 17:15 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -540,7 +544,7 @@ const MapV={
   setAero(list,on){if(this.aero){this.m.removeLayer(this.aero);this.aero=null}
     if(!on||!list||!list.length)return;
     this.aero=L.geoJSON({type:"FeatureCollection",features:list.map(a=>({type:"Feature",properties:{ref:a},geometry:a.geometry}))},
-      {pane:"aero",interactive:true,bubblingMouseEvents:true,style:{color:"#c2185b",weight:2,dashArray:"7 5",opacity:.9,fillColor:"#c2185b",fillOpacity:.07},attribution:"CTR/Flugplätze © openAIP (nicht für die Flugplanung)",
+      {pane:"aero",interactive:true,bubblingMouseEvents:true,style:{color:"#6a3fb5",weight:2,dashArray:"7 5",opacity:.9,fillColor:"#6a3fb5",fillOpacity:.06},attribution:"CTR/Flugplätze © openAIP (nicht für die Flugplanung)",
        onEachFeature:(f,l)=>l.bindPopup(()=>ctrPopup(f.properties.ref),{autoPanPadding:[20,20]})}).addTo(this.m)},
   setBorders(geo,on){if(this.bord){this.m.removeLayer(this.bord);this.bord=null}if(!on||!geo)return;
     const base=state.settings.base||"street",dk=isDark()&&(base==="street"||base==="off"),g=L.layerGroup(),c1=dk?"#c9d2db":"#1d2329",c2=dk?"#9aa6b2":"#3a4652";
@@ -569,11 +573,11 @@ const MapV={
     this.updCorr=null;
     if(corrNm){const rm=corrNm*1852,midLat=pts.reduce((s,p)=>s+p.lat,0)/pts.length;
       /* Band = eine dicke Linie mit runden Enden, Breite passend zum Zoom -> keine Überlappungen an den Knicken */
-      const band=L.polyline(ll,{color:"#d3121f",opacity:.28,lineCap:"round",lineJoin:"round",interactive:false,weight:1}).addTo(g);
+      const band=L.polyline(ll,{color:"#5b6b7c",opacity:.22,lineCap:"round",lineJoin:"round",interactive:false,weight:1}).addTo(g);
       for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],c=Math.cos(((a.lat+b.lat)/2)*R),dx=(b.lon-a.lon)*c,dy=b.lat-a.lat,len=Math.hypot(dx,dy)||1;
         const oLat=(dx/len)*rm/111320,oLon=(-dy/len)*rm/111320/c;
-        [1,-1].forEach(sg=>L.polyline([[a.lat+sg*oLat,a.lon+sg*oLon],[b.lat+sg*oLat,b.lon+sg*oLon]],{color:"#d3121f",weight:2,opacity:.9,dashArray:"8 6",interactive:false}).addTo(g))}
-      pts.forEach(p=>L.circle([p.lat,p.lon],{radius:rm,color:"#d3121f",weight:2,opacity:.9,dashArray:"8 6",fill:false,interactive:false}).addTo(g));
+        [1,-1].forEach(sg=>L.polyline([[a.lat+sg*oLat,a.lon+sg*oLon],[b.lat+sg*oLat,b.lon+sg*oLon]],{color:"#3b4754",weight:1.8,opacity:.85,dashArray:"8 6",interactive:false}).addTo(g))}
+      pts.forEach(p=>L.circle([p.lat,p.lon],{radius:rm,color:"#3b4754",weight:1.8,opacity:.85,dashArray:"8 6",fill:false,interactive:false}).addTo(g));
       this.updCorr=()=>{const mpp=40075016.686*Math.cos(midLat*R)/Math.pow(2,this.m.getZoom()+8);band.setStyle({weight:Math.max(2,2*rm/mpp)})};
       this.updCorr()}
     L.polyline(ll,{color:"#ffffff",weight:8,opacity:.85,interactive:false}).addTo(g);
@@ -595,7 +599,7 @@ const MapV={
       this.tl.on("tileload",()=>{ok=true});this.tl.on("tileerror",()=>{if(ok)return;if(++errs>=4&&si<B.length-1){si++;add()}})};add()},
   setBaseOpacity(op){if(this.tl)this.tl.setOpacity(op/100)},
   setCtrs(list){if(this.ctrLayer){this.m.removeLayer(this.ctrLayer);this.ctrLayer=null}if(!list||!list.length)return;
-    const g=L.layerGroup();list.forEach(a=>{L.geoJSON(a.geometry,{pane:"ctr",style:{color:"#7a1fa2",weight:2.5,fillColor:"#b04ad6",fillOpacity:.32},interactive:true})
+    const g=L.layerGroup();list.forEach(a=>{L.geoJSON(a.geometry,{pane:"ctr",style:{color:"#5b2aa8",weight:3,fillColor:"#7c4dd1",fillOpacity:.26},interactive:true})
       .bindTooltip(`<b>${esc(a.name)}</b><br>${esc(a.cls)} · ${esc(a.lim)}`,{sticky:true}).addTo(g)});this.ctrLayer=g.addTo(this.m)},
   resize(){this.m.invalidateSize()}
 };
