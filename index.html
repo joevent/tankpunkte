@@ -160,6 +160,11 @@ td .nm{font-weight:600}
 .wp input{padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);min-width:0;width:100%}
 .wp input.bad{border-color:var(--warn)}
 .chk2{display:inline-flex;gap:6px;align-items:center;font-size:14px}
+.corr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.corr-seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.corr-seg button{border:0;border-right:1px solid var(--line);background:var(--surface);padding:5px 10px;cursor:pointer;font:500 13px/1.2 var(--f-mono);font-variant-numeric:tabular-nums}
+.corr-seg button:last-child{border-right:0}
+.corr-seg button[aria-pressed="true"]{background:var(--head);color:var(--head-fg)}
 .legs{width:100%;border-collapse:collapse;font-size:14px;min-width:0}
 .legs td{padding:5px 4px;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 .legs td:first-child{font-family:var(--f-body);white-space:normal}
@@ -259,6 +264,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
           <div class="route-body">
             <div id="wpList"></div>
             <div class="row-actions"><button type="button" class="btn small" id="wpAdd">+ Punkt</button><label class="chk2"><input type="checkbox" id="wpLoop"> zurück zum Start</label></div>
+            <div class="corr"><span class="eyebrow">Korridor links/rechts</span><div class="corr-seg" id="corrSeg"></div></div>
             <div class="row-actions"><button type="button" class="btn small primary" id="routeGo">Linie zeichnen</button><button type="button" class="btn small" id="routeClear">Löschen</button></div>
             <div id="routeOut"></div>
           </div>
@@ -479,8 +485,13 @@ const MapV={
   setUser(p){if(!p)return;if(!this.u)this.u=L.marker([p.lat,p.lon],{zIndexOffset:1000,interactive:false,icon:L.divIcon({className:"",html:'<div class="me"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(this.m);else this.u.setLatLng([p.lat,p.lon])},
   focus(lat,lon,z){this.m.setView([lat,lon],Math.max(this.m.getZoom(),z||10))},
   fit(pts){if(!pts.length)return;if(pts.length===1)return this.focus(pts[0][0],pts[0][1],10);this.m.fitBounds(pts,{padding:[40,40],maxZoom:11})},
-  setRoute(pts){if(this.rt){this.m.removeLayer(this.rt);this.rt=null}if(!pts||pts.length<2)return;
+  setRoute(pts,corrNm){if(this.rt){this.m.removeLayer(this.rt);this.rt=null}if(!pts||pts.length<2)return;
     const g=L.layerGroup(),ll=pts.map(p=>[p.lat,p.lon]);
+    if(corrNm){const rm=corrNm*1852;
+      for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],c=Math.cos(a.lat*R),dx=(b.lon-a.lon)*c,dy=b.lat-a.lat,len=Math.hypot(dx,dy)||1;
+        const nx=-dy/len,ny=dx/len,dLat=ny*rm/111320*1,dLonA=nx*rm/111320/c;
+        L.polygon([[a.lat+dLat,a.lon+dLonA],[b.lat+dLat,b.lon+dLonA],[b.lat-dLat,b.lon-dLonA],[a.lat-dLat,a.lon-dLonA]],{stroke:false,fillColor:"#d3121f",fillOpacity:.1,interactive:false}).addTo(g)}
+      pts.forEach(p=>L.circle([p.lat,p.lon],{radius:rm,stroke:false,fillColor:"#d3121f",fillOpacity:.1,interactive:false}).addTo(g))}
     L.polyline(ll,{color:"#ffffff",weight:8,opacity:.85,interactive:false}).addTo(g);
     L.polyline(ll,{color:"#d3121f",weight:4,interactive:false}).addTo(g);
     for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],nm=distKm(a,b)/1.852;
@@ -491,7 +502,7 @@ const MapV={
 };
 function startMap(){if(!window.L){toast("Kartenbibliothek nicht geladen – Liste funktioniert trotzdem.");return}
   map=MapV;map.init($("#map"));map.onClick=(lat,lon)=>{if(!state.placing)return;state.placing=false;$("#placingHint").hidden=true;setPos({lat,lon,src:"manuell"},true)};
-  updateAero();if(state.route.pts)map.setRoute(state.route.pts);render(!state.route.pts);if(state.route.pts)map.fit(state.route.pts.map(p=>[p.lat,p.lon]))}
+  updateAero();if(state.route.pts)map.setRoute(state.route.pts,state.route.corr);render(!state.route.pts);if(state.route.pts)map.fit(state.route.pts.map(p=>[p.lat,p.lon]))}
 function updateAero(){const has=!!state.aeroKey;$("#btnAero").hidden=!has;$("#btnAero").setAttribute("aria-pressed",String(has&&state.aeroOn));if(map)map.setAero(state.aeroKey,state.aeroOn)}
 $("#btnAero").addEventListener("click",()=>{state.aeroOn=!state.aeroOn;state.settings.aeroOn=state.aeroOn;store.set(K_SET,state.settings);updateAero()});
 
@@ -690,8 +701,11 @@ $("#btnTemplate").addEventListener("click",()=>download("tankpunkte-vorlage.csv"
 
 /* ---------- Strecke (Luftlinie) ---------- */
 const RK="tp.route.v1",GK="tp.geo.v1",LET="ABCDEFGH";
-state.route=Object.assign({wps:["","",""],loop:false,pts:null,msg:""},store.get(RK)||{});
-const saveRoute=()=>store.set(RK,{wps:state.route.wps,loop:state.route.loop,pts:state.route.pts});
+const CORR=[5,10,20,30,50];
+state.route=Object.assign({wps:["","",""],loop:false,pts:null,msg:"",corr:10},store.get(RK)||{});
+const saveRoute=()=>store.set(RK,{wps:state.route.wps,loop:state.route.loop,pts:state.route.pts,corr:state.route.corr});
+function renderCorr(){$("#corrSeg").innerHTML=CORR.map(v=>`<button type="button" data-corr="${v}" aria-pressed="${v===state.route.corr}">${v} NM</button>`).join("")}
+$("#corrSeg").addEventListener("click",e=>{const b=e.target.closest("[data-corr]");if(!b)return;state.route.corr=+b.dataset.corr;saveRoute();renderCorr();if(map&&state.route.pts)map.setRoute(state.route.pts,state.route.corr);renderRoute()});
 function renderWps(){$("#wpList").innerHTML=state.route.wps.map((v,i)=>`<div class="wp"><span class="wp-l">${LET[i]}</span><input id="wp${i}" data-i="${i}" value="${esc(v)}" placeholder="${i===0?"z. B. Dortmund oder EDLW":"Ort, ICAO, Tankpunkt, 51.5 7.6"}" autocomplete="off" enterkeyhint="go"><button type="button" class="btn small" data-wpgps="${i}" aria-label="Aktuellen Standort einsetzen" title="Aktueller Standort">◎</button><button type="button" class="btn small" data-wpdel="${i}" aria-label="Punkt entfernen" ${state.route.wps.length<=2?"disabled":""}>✕</button></div>`).join("");
   $("#wpLoop").checked=!!state.route.loop;$("#wpAdd").disabled=state.route.wps.length>=LET.length}
 $("#wpList").addEventListener("input",e=>{const i=e.target.dataset.i;if(i==null)return;state.route.wps[+i]=e.target.value;e.target.classList.remove("bad");saveRoute()});
@@ -728,7 +742,7 @@ async function drawRoute(){const btn=$("#routeGo");btn.disabled=true;btn.textCon
       if(!pts.length||pts[pts.length-1].l!==LET[i]){const el=$("#wp"+i);if(el)el.classList.add("bad")}}
     if(pts.length<2){state.route.pts=null;state.route.msg=bad.length?bad.join(" · "):"Mindestens zwei Punkte eintragen.";}
     else{if(state.route.loop)pts.push(Object.assign({},pts[0],{loop:true}));state.route.pts=pts;state.route.msg=bad.join(" · ");
-      if(map){map.setRoute(pts);map.fit(pts.map(p=>[p.lat,p.lon]))}}}
+      if(map){map.setRoute(pts,state.route.corr);map.fit(pts.map(p=>[p.lat,p.lon]))}}}
   finally{btn.disabled=false;btn.textContent="Linie zeichnen";saveRoute();renderRoute()}}
 function offRoute(s,pts){let best=Infinity,leg=0;for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],c=Math.cos(a.lat*R);
     const bx=(b.lon-a.lon)*c*111.32,by=(b.lat-a.lat)*110.574,px=(s.lon-a.lon)*c*111.32,py=(s.lat-a.lat)*110.574;
@@ -740,12 +754,12 @@ function renderRoute(){const pts=state.route.pts,out=$("#routeOut");if(!out)retu
       rows.push(`<tr><td>${a.l} → ${b.l}<div class="muted" style="font-size:12px">${esc(a.label)} → ${esc(b.label)}</div></td><td class="r">${crs(bearing(a,b))}</td><td class="r">${fmt(km/1.852,1)} NM</td></tr>`)}
     h+=`<div style="overflow-x:auto"><table class="legs"><tbody>${rows.join("")}<tr class="tot"><td>Gesamt</td><td></td><td class="r">${fmt(tot/1.852,1)} NM</td></tr></tbody></table></div>`;
     $("#routeSum").textContent=pts.map(p=>p.l).join("→")+" · "+fmt(tot/1.852,0)+" NM";
-    const near=filtered().map(s=>Object.assign({s},offRoute(s,pts))).filter(x=>x.nm<=10).sort((a,b)=>a.leg-b.leg||a.nm-b.nm).slice(0,10);
+    const near=filtered().map(s=>Object.assign({s},offRoute(s,pts))).filter(x=>x.nm<=state.route.corr).sort((a,b)=>a.leg-b.leg||a.nm-b.nm).slice(0,25);
     const lbl={tag:"Tag",nacht:"Nacht",alle:"Tag & Nacht"}[state.time];
-    h+=`<div class="eyebrow">Tankpunkte an der Strecke · ≤ 10 NM · ${lbl}</div>`+(near.length?`<div class="list">${near.map(x=>`<button class="item" data-act="select" data-id="${x.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${fmt(x.nm,1)} NM</span><span class="sub">Abschnitt ${pts[x.leg].l} → ${pts[x.leg+1].l}${x.s.hours?" · "+esc(x.s.hours):""}</span><span></span></button>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Keine passenden Tankpunkte im Korridor.</div>`);
+    h+=`<div class="eyebrow">Tankpunkte an der Strecke · ≤ ${state.route.corr} NM · ${lbl}${near.length?" · "+near.length:""}</div>`+(near.length?`<div class="list">${near.map(x=>`<button class="item" data-act="select" data-id="${x.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${fmt(x.nm,1)} NM</span><span class="sub">Abschnitt ${pts[x.leg].l} → ${pts[x.leg+1].l}${x.s.hours?" · "+esc(x.s.hours):""}</span><span></span></button>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Keine passenden Tankpunkte im Korridor.</div>`);
   } else $("#routeSum").textContent="Luftlinie A → B → C";
   out.innerHTML=h}
-renderWps();if(state.route.pts)$("#routeBox").open=true;
+if(!CORR.includes(state.route.corr))state.route.corr=10;renderWps();renderCorr();if(state.route.pts)$("#routeBox").open=true;
 
 /* ---------- UI ---------- */
 $("#segTime").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;state.time=b.dataset.v;state.sel=null;persistUi();render(true)});
