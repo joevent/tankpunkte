@@ -380,9 +380,15 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <div class="row-actions"><button class="btn small" type="button" id="s_oaipcheck">openAIP-Datencheck</button></div>
       <textarea id="s_oaipout" readonly hidden style="min-height:180px;font:12px/1.35 var(--f-mono)"></textarea>
       <div class="row-actions"><button class="btn small" type="button" id="s_oaipcopy" hidden>Ergebnis kopieren</button></div></div>
+    <div class="sect f full" id="edUnlockBox"><span class="flbl">Bearbeiten auf diesem Gerät freischalten</span>
+      <div class="row-actions"><input id="s_edpw" type="password" placeholder="Bearbeiter-Passwort" autocomplete="off" style="flex:1 1 180px"><button class="btn small primary" type="button" id="s_edunlock">Freischalten</button></div>
+      <small>Mit dem Bearbeiter-Passwort kann jedes Gerät die zentrale Liste ändern und veröffentlichen.</small></div>
+    <div class="sect edit-only f full"><span class="flbl">Bearbeiter-Passwort</span>
+      <div class="row-actions"><input id="s_edset1" type="password" placeholder="Neues Bearbeiter-Passwort" autocomplete="new-password" style="flex:1 1 160px"><input id="s_edset2" type="password" placeholder="Wiederholen" autocomplete="new-password" style="flex:1 1 160px"><button class="btn small" type="button" id="s_edset">Festlegen</button></div>
+      <small id="s_edinfo">Legt fest, mit welchem Passwort andere Geräte das Bearbeiten freischalten. Der GitHub-Zugang wird damit verschlüsselt in der Liste mitgeschickt. Danach veröffentlichen.</small></div>
     <div class="sect edit-only f full"><span class="flbl">GitHub-Verbindung (nur Bearbeiter)</span>
       <div class="row-actions"><input id="s_repo" placeholder="benutzer/repository" autocomplete="off" style="flex:1 1 180px"><input id="s_token" type="password" placeholder="Zugriffstoken (github_pat_…)" autocomplete="off" style="flex:1 1 220px"></div>
-      <small>Fein-granularer Token, nur für dieses eine Repository, Berechtigung „Contents: Read and write“. Bleibt verschlüsselt auf diesem Gerät und wird nie mit der Liste verteilt.</small></div>
+      <small>Fein-granularer Token, nur für dieses eine Repository, Berechtigung „Contents: Read and write“. Wird nur mit Bearbeiter-Passwort verschlüsselt weitergegeben.</small></div>
     <div class="sect edit-only f full"><span class="flbl">PIN ändern</span>
       <div class="row-actions"><input type="password" id="s_np1" placeholder="Neue PIN" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="flex:1 1 120px"><input type="password" id="s_np2" placeholder="Wiederholen" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="flex:1 1 120px"><button class="btn small" type="button" id="s_chpass">Ändern</button></div>
       <small>Danach veröffentlichen. Alle brauchen dann die neue PIN.</small></div>
@@ -392,7 +398,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 18:05 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 18:20 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -461,7 +467,7 @@ async function recallKey(saltB64){const r=store.get(K_KEY);if(!r||r.salt!==saltB
   try{return await crypto.subtle.importKey("raw",unb64(r.k),{name:"AES-GCM"},true,["encrypt","decrypt"])}catch(e){return null}}
 async function fetchCentral(){try{const r=await fetch(CENTRAL,{cache:"no-store"});if(!r.ok)return null;const j=await r.json();return j&&j.format==="tankpunkte-enc"?j:null}catch(e){return null}}
 
-async function saveLocal(){if(!state.key)return;try{const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:state.meta,isSample:state.isSample,gh:state.gh});
+async function saveLocal(){if(!state.key)return;try{const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:state.meta,isSample:state.isSample,gh:state.gh,edEnv:state.edEnv});
   if(!store.set(K_LOCAL,env))toast("Lokales Speichern nicht möglich – bitte exportieren.")}catch(e){toast("Speichern fehlgeschlagen")}}
 function markChanged(){state.isSample=false;state.meta.updated=new Date().toISOString();state.meta.dirty=true;saveLocal();renderBanners()}
 
@@ -508,7 +514,7 @@ async function loadData(){
   else if(c){useData(c);state.meta={updated:c.meta&&c.meta.updated||null,base:c.meta&&c.meta.updated||null,dirty:false};await saveLocal()}
   else if(l)useData(l);
 }
-function useData(d){if(d.gh)state.gh=d.gh;state.stations=(d.stations||[]).map(normalize).filter(valid);state.aeroKey=d.aeroKey||"";state.isSample=!!d.isSample;
+function useData(d){if(d.gh)state.gh=d.gh;if(d.edEnv)state.edEnv=d.edEnv;state.stations=(d.stations||[]).map(normalize).filter(valid);state.aeroKey=d.aeroKey||"";state.isSample=!!d.isSample;
   if(!state.isSample&&state.stations.length&&state.stations.every(s=>/^Beispiel\b/.test(s.name)))state.isSample=true;
   if(state.isSample)state.stations=SAMPLES.map(normalize);
   state.meta=Object.assign({updated:null,base:null,dirty:false},d.meta||{})}
@@ -838,7 +844,7 @@ $("#e_usepos").addEventListener("click",()=>{if(!state.pos){toast("Noch kein Sta
 document.querySelectorAll("dialog [data-close]").forEach(b=>b.addEventListener("click",()=>b.closest("dialog").close()));
 
 /* Einstellungen */
-$("#btnSettings").addEventListener("click",()=>{$("#s_theme").value=state.settings.theme||"";$("#s_edit").checked=!!state.settings.edit;$("#s_aero").value=state.aeroKey;$("#s_repo").value=state.gh.repo||guessRepo();$("#s_token").value=state.gh.token||"";$("#s_np1").value="";$("#s_np2").value="";$("#dlgSettings").showModal()});
+$("#btnSettings").addEventListener("click",()=>{renderEdInfo();$("#s_theme").value=state.settings.theme||"";$("#s_edit").checked=!!state.settings.edit;$("#s_aero").value=state.aeroKey;$("#s_repo").value=state.gh.repo||guessRepo();$("#s_token").value=state.gh.token||"";$("#s_np1").value="";$("#s_np2").value="";$("#dlgSettings").showModal()});
 $("#s_edit").addEventListener("change",e=>{state.settings.edit=e.target.checked;applyEditMode()});
 $("#formSettings").addEventListener("submit",e=>{e.preventDefault();
   state.settings.theme=$("#s_theme").value;state.settings.edit=$("#s_edit").checked;store.set(K_SET,state.settings);applyTheme();applyEditMode();
@@ -850,6 +856,21 @@ $("#s_chpass").addEventListener("click",async()=>{const a=$("#s_np1").value,b=$(
   if(!/^\d{4}$/.test(a)){toast("Bitte genau 4 Ziffern.");return}if(a!==b){toast("PINs stimmen nicht überein.");return}
   state.salt=crypto.getRandomValues(new Uint8Array(16));state.iter=ITER;state.key=await deriveKey(a,state.salt,state.iter);
   if(store.get(K_KEY))await rememberKey();markChanged();$("#s_np1").value="";$("#s_np2").value="";toast("PIN geändert – jetzt veröffentlichen.")});
+/* Bearbeiter-Freischaltung: GitHub-Zugang mit eigenem Passwort verschlüsselt in der Liste */
+async function edKey(pw,salt){return deriveKey(pw,salt,ITER)}
+$("#s_edset").addEventListener("click",async()=>{const a=$("#s_edset1").value,b2=$("#s_edset2").value;
+  const repo=$("#s_repo").value.trim()||state.gh.repo,token=$("#s_token").value.trim()||state.gh.token;
+  if(!repo||!token){toast("Erst Repository und Token eintragen.");return}
+  if(a.length<6){toast("Mindestens 6 Zeichen.");return}if(a!==b2){toast("Passwörter stimmen nicht überein.");return}
+  const salt=crypto.getRandomValues(new Uint8Array(16)),k=await edKey(a,salt),iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},k,te.encode(JSON.stringify({repo,token})));
+  state.gh={repo,token};state.edEnv={salt:b64(salt),iv:b64(iv),data:b64(ct)};markChanged();$("#s_edset1").value="";$("#s_edset2").value="";renderEdInfo();
+  toast("Bearbeiter-Passwort gesetzt – jetzt veröffentlichen.")});
+$("#s_edunlock").addEventListener("click",async()=>{const pw=$("#s_edpw").value;if(!state.edEnv){toast("Für diese Liste ist noch kein Bearbeiter-Passwort festgelegt.");return}
+  try{const e=state.edEnv,k=await edKey(pw,unb64(e.salt));const gh=JSON.parse(td.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(e.iv)},k,unb64(e.data))));
+    state.gh=gh;state.settings.edit=true;store.set(K_SET,state.settings);await saveLocal();applyEditMode();$("#s_edit").checked=true;$("#s_repo").value=gh.repo;$("#s_token").value=gh.token;$("#s_edpw").value="";renderEdInfo();render();toast("Bearbeiten freigeschaltet")}
+  catch(x){toast("Bearbeiter-Passwort falsch.")}});
+function renderEdInfo(){const box=$("#edUnlockBox");if(box)box.hidden=state.settings.edit&&ghReady();const i=$("#s_edinfo");if(i)i.textContent=state.edEnv?"Ein Bearbeiter-Passwort ist festgelegt. Neu festlegen ersetzt es (danach veröffentlichen).":"Legt fest, mit welchem Passwort andere Geräte das Bearbeiten freischalten. Der GitHub-Zugang wird damit verschlüsselt in der Liste mitgeschickt. Danach veröffentlichen."}
 $("#s_reload").addEventListener("click",async()=>{const env=await fetchCentral();if(!env){toast("Keine "+CENTRAL+" auf dem Server gefunden.");return}
   if(env.salt!==b64(state.salt)){toast("Die PIN wurde geändert – bitte neu entsperren.");store.del(K_KEY);setTimeout(()=>location.reload(),1200);return}
   try{const c=await openObj(env,state.key);if(state.meta.dirty&&state.settings.edit){state.conflict=c;renderBanners();toast("Lokale Änderungen vorhanden – Hinweis oben beachten.")}
@@ -906,7 +927,7 @@ $("#fileImport").addEventListener("change",async e=>{const file=e.target.files[0
   catch(err){toast("Import fehlgeschlagen: "+err.message)}});
 function download(name,text,type){const blob=new Blob([text],{type});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 async function exportEnc(){if(!state.key)return;const updated=state.meta.updated||new Date().toISOString();
-  const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:{updated},isSample:false});
+  const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:{updated},isSample:false,edEnv:state.edEnv});
   download(CENTRAL,JSON.stringify(env),"application/json");state.meta.updated=updated;state.meta.base=updated;state.meta.dirty=false;state.isSample=false;await saveLocal();renderBanners();
   toast("Exportiert – Datei im GitHub-Repository ersetzen.")}
 /* Direkt zu GitHub veröffentlichen (Contents-API, Token nur lokal) */
@@ -915,7 +936,7 @@ const ghReady=()=>!!(state.gh&&state.gh.repo&&state.gh.token);
 async function publish(btn){if(!ghReady()){toast("Erst unter ⚙ GitHub verbinden (Repository + Token).");return}
   const old=btn&&btn.textContent;if(btn){btn.disabled=true;btn.textContent="Wird veröffentlicht …"}
   try{const updated=state.meta.updated||new Date().toISOString();
-    const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:{updated},isSample:false});
+    const env=await sealObj({stations:state.stations,aeroKey:state.aeroKey,meta:{updated},isSample:false,edEnv:state.edEnv});
     const api="https://api.github.com/repos/"+state.gh.repo+"/contents/"+CENTRAL;
     const hd={"Authorization":"Bearer "+state.gh.token,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};
     let sha;const g=await fetch(api+"?t="+Date.now(),{headers:hd,cache:"no-store"});
@@ -1050,6 +1071,18 @@ $("#tab-karte").addEventListener("click",()=>setView("karte"));$("#tab-katalog")
 $("#btnLocate").addEventListener("click",locate);$("#btnNew").addEventListener("click",()=>openEdit(null));
 $("#q").addEventListener("input",e=>{state.q=e.target.value;renderCatalog()});
 setInterval(()=>{if(state.key)render(false)},60000);
+/* Zentrale Liste automatisch nachladen: beim Zurückkehren in die App und alle 5 Minuten */
+let lastSync=0;
+async function syncCentral(force){if(!state.key||(!force&&Date.now()-lastSync<60000))return;lastSync=Date.now();
+  const env=await fetchCentral();if(!env)return;
+  if(env.salt!==b64(state.salt)){store.del(K_KEY);toast("Die PIN wurde geändert – bitte neu entsperren.");setTimeout(()=>location.reload(),1500);return}
+  let c;try{c=await openObj(env,state.key)}catch(x){return}
+  const upd=c.meta&&c.meta.updated;if(!upd||upd===state.meta.base)return;
+  if(state.meta.dirty){state.conflict=c;renderBanners();return}
+  const sel=state.sel;useData(c);state.meta.base=state.meta.updated;state.meta.dirty=false;state.sel=sel;await saveLocal();render();try{updateAero()}catch(e){}
+  toast("Tankpunktliste aktualisiert ("+new Date(upd).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"short"})+")")}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")syncCentral()});
+setInterval(()=>syncCentral(),300000);
 
 /* ---------- Start ---------- */
 (async function boot(){
