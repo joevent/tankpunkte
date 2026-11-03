@@ -360,7 +360,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 15:30 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 15:35 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -514,10 +514,16 @@ const MapV={
     if(key&&on){let warned=false,ok=false;this.aero=L.tileLayer("https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey="+encodeURIComponent(key),
       {pane:"aero",minZoom:4,maxNativeZoom:14,maxZoom:19,opacity:.95,attribution:"Lufträume © openAIP (nicht für die Flugplanung)"}).addTo(this.m);
       this.aero.on("tileload",()=>ok=true);this.aero.on("tileerror",()=>{if(!ok&&!warned){warned=true;toast("Luftraum-Overlay lädt nicht – openAIP-Schlüssel prüfen.")}})}},
-  setStations(list,sel,cb){this.layer.clearLayers();list.forEach(s=>{const mk=L.marker([s.lat,s.lon],{zIndexOffset:s.id===sel?500:0,icon:L.divIcon({className:"",html:pinHtml(s,s.id===sel),iconSize:[26,26],iconAnchor:[13,13]})});
+  setStations(list,sel,cb){
+    /* Marker nur neu bauen, wenn sich die Liste ändert – sonst nur das Symbol tauschen, damit ein offenes Popup offen bleibt */
+    const icon=s=>L.divIcon({className:"",html:pinHtml(s,s.id===sel),iconSize:[26,26],iconAnchor:[13,13]});
+    const key=list.map(s=>s.id+":"+s.lat+":"+s.lon+":"+s.night+":"+s.name).join("|");
+    if(key===this.mkKey&&this.mks){list.forEach(s=>{const mk=this.mks.get(s.id);if(!mk)return;const was=mk._sel===true,now=s.id===sel;if(was!==now){mk.setIcon(icon(s));mk.setZIndexOffset(now?500:0);mk._sel=now}});return}
+    this.layer.clearLayers();this.mks=new Map();this.mkKey=key;
+    list.forEach(s=>{const mk=L.marker([s.lat,s.lon],{zIndexOffset:s.id===sel?500:0,icon:icon(s)});mk._sel=s.id===sel;
     mk.on("click",()=>cb(s.id));mk.bindTooltip(esc(s.name),{direction:"top",offset:[0,-12]});
     mk.bindPopup(()=>`<div class="pop"><b>${esc(s.name)}</b><div class="badges">${availBadge(s)}</div>${s.hours?`<div class="muted">${esc(s.hours)}</div>`:""}<div class="row-actions"><button class="btn small primary" data-act="addroute" data-id="${s.id}">Zur Strecke</button><button class="btn small" data-act="details" data-id="${s.id}">Details</button></div></div>`,{offset:[0,-8],closeButton:true,autoPanPadding:[20,20]});
-    mk.addTo(this.layer)})},
+    this.mks.set(s.id,mk);mk.addTo(this.layer)})},
   setUser(p){if(!p)return;if(!this.u)this.u=L.marker([p.lat,p.lon],{zIndexOffset:1000,interactive:false,icon:L.divIcon({className:"",html:'<div class="me"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(this.m);else this.u.setLatLng([p.lat,p.lon])},
   focus(lat,lon,z){this.m.setView([lat,lon],Math.max(this.m.getZoom(),z||10))},
   fit(pts){if(!pts.length)return;if(pts.length===1)return this.focus(pts[0][0],pts[0][1],10);this.m.fitBounds(pts,{padding:[40,40],maxZoom:11})},
@@ -595,7 +601,7 @@ function render(fit){
   const list=withDist(filtered());
   if(state.sel&&!list.some(x=>x.s.id===state.sel))state.sel=null;
   const top=state.sel?list.find(x=>x.s.id===state.sel):list[0];
-  if(map){map.setStations(list.map(x=>x.s),top&&top.s.id,id=>{state.sel=id;render();const s=byId(id);if(s)map.focus(s.lat,s.lon)});map.setUser(state.pos);
+  if(map){map.setStations(list.map(x=>x.s),top&&top.s.id,id=>{state.sel=id;render()});map.setUser(state.pos);
     if(fit){const pts=[];if(state.pos){pts.push([state.pos.lat,state.pos.lon]);if(list[0])pts.push([list[0].s.lat,list[0].s.lon])}else list.forEach(x=>pts.push([x.s.lat,x.s.lon]));map.fit(pts)}}
   renderSide(list,top,sun);renderCatalog();renderBanners();renderRoute();
 }
