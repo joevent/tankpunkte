@@ -290,7 +290,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
             <span class="eyebrow">Grundkarte</span>
             <div class="lseg" id="baseSeg"><button type="button" data-base="relief">Relief</button><button type="button" data-base="topo">Topo</button><button type="button" data-base="street">Straße</button><button type="button" data-base="off">Aus</button></div>
             <label class="lrow" for="baseOp"><span>Deckkraft</span><input type="range" id="baseOp" min="15" max="100" step="5"><span class="mono" id="baseOpV"></span></label>
-            <label class="lrow"><input type="checkbox" id="aeroChk"> <span>Lufträume (openAIP)</span></label>
+            <label class="lrow"><input type="checkbox" id="aeroChk"> <span>Kontrollzonen (CTR)</span></label>
             <small class="muted" id="aeroHint" hidden>Schlüssel unter ⚙ eintragen.</small>
           </div></div>
         <div class="legend"><span><i class="dot-n"></i>24 h</span><span><i class="dot-d"></i>nur Tag</span></div>
@@ -376,7 +376,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 16:15 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 16:25 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -526,10 +526,10 @@ const MapV={
     this.m.on("zoomend",()=>this.updCorr&&this.updCorr());
     this.m.createPane("ctr");this.m.getPane("ctr").style.zIndex=390;
     this.layer=L.layerGroup().addTo(this.m);this.m.on("click",e=>this.onClick&&this.onClick(e.latlng.lat,e.latlng.lng))},
-  setAero(key,on){if(this.aero){this.m.removeLayer(this.aero);this.aero=null}
-    if(key&&on){let warned=false,ok=false;this.aero=L.tileLayer("https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey="+encodeURIComponent(key),
-      {pane:"aero",minZoom:4,maxNativeZoom:14,maxZoom:19,opacity:.95,attribution:"Lufträume © openAIP (nicht für die Flugplanung)"}).addTo(this.m);
-      this.aero.on("tileload",()=>ok=true);this.aero.on("tileerror",()=>{if(!ok&&!warned){warned=true;toast("Luftraum-Overlay lädt nicht – openAIP-Schlüssel prüfen.")}})}},
+  setAero(list,on){if(this.aero){this.m.removeLayer(this.aero);this.aero=null}
+    if(!on||!list||!list.length)return;
+    this.aero=L.geoJSON({type:"FeatureCollection",features:list.map(a=>({type:"Feature",properties:{name:a.name,lim:a.lim},geometry:a.geometry}))},
+      {pane:"aero",interactive:false,style:{color:"#c2185b",weight:2,dashArray:"7 5",opacity:.9,fillColor:"#c2185b",fillOpacity:.07},attribution:"CTR © openAIP (nicht für die Flugplanung)"}).addTo(this.m)},
   setStations(list,sel,cb){
     /* Marker nur neu bauen, wenn sich die Liste ändert – sonst nur das Symbol tauschen, damit ein offenes Popup offen bleibt */
     const icon=s=>L.divIcon({className:"",html:pinHtml(s,s.id===sel),iconSize:[26,26],iconAnchor:[13,13]});
@@ -581,11 +581,30 @@ const MapV={
 function startMap(){if(!window.L){toast("Kartenbibliothek nicht geladen – Liste funktioniert trotzdem.");return}
   map=MapV;map.init($("#map"));map.onClick=(lat,lon)=>{if(!state.placing)return;state.placing=false;$("#placingHint").hidden=true;setPos({lat,lon,src:"manuell"},true)};
   updateAero();if(state.route.pts){map.setRoute(state.route.pts,state.route.corr);checkCtrs()}render(!state.route.pts);if(state.route.pts)map.fit(state.route.pts.map(p=>[p.lat,p.lon]))}
-function updateAero(){const has=!!state.aeroKey;$("#aeroChk").disabled=!has;$("#aeroChk").checked=has&&state.aeroOn;$("#aeroHint").hidden=has;if(map)map.setAero(state.aeroKey,state.aeroOn)}
+/* Alle CTRs in Deutschland einmal laden (eine Abfrage, 7 Tage zwischengespeichert) – statt Rasterkarte mit allen Luftraumarten */
+const CK="tp.ctr.v1";let ctrAll=null,ctrLoading=null;
+async function loadCtrs(force){if(!state.aeroKey)return null;
+  if(!force&&ctrAll)return ctrAll;
+  const c=store.get(CK);if(!force&&c&&c.k===state.aeroKey.slice(-6)&&Date.now()-c.t<7*864e5&&Array.isArray(c.items)){ctrAll=c.items;return ctrAll}
+  if(ctrLoading)return ctrLoading;
+  ctrLoading=(async()=>{let items=[],page=1,pages=1;
+    do{const u="https://api.core.openaip.net/api/airspaces?bbox=5.3,46.9,15.6,55.3&type=4&limit=500&page="+page+"&apiKey="+encodeURIComponent(state.aeroKey);
+      const r=await fetch(u,{headers:{"Accept":"application/json"}});
+      if(!r.ok)throw new Error(r.status===401||r.status===403?"openAIP-Schlüssel abgelehnt":"openAIP antwortet mit "+r.status);
+      const j=await r.json();items=items.concat(j.items||[]);pages=j.totalPages||1;page++}while(page<=pages&&page<=8);
+    ctrAll=items.filter(a=>a.type===4&&a.geometry).map(a=>({name:a.name,cls:a.icaoClass!=null&&CLS[a.icaoClass]?"Klasse "+CLS[a.icaoClass]:"CTR",lim:limTxt(a.lowerLimit)+" – "+limTxt(a.upperLimit),geometry:a.geometry}));
+    store.set(CK,{t:Date.now(),k:state.aeroKey.slice(-6),items:ctrAll});return ctrAll})();
+  try{return await ctrLoading}finally{ctrLoading=null}}
+async function updateAero(){const has=!!state.aeroKey;$("#aeroChk").disabled=!has;$("#aeroChk").checked=has&&state.aeroOn;$("#aeroHint").hidden=has;
+  if(!map)return;if(!has||!state.aeroOn){map.setAero(null,false);return}
+  try{const l=await loadCtrs();map.setAero(l,state.aeroOn)}catch(x){toast("Kontrollzonen nicht geladen: "+x.message)}}
 $("#aeroChk").addEventListener("change",e=>{state.aeroOn=e.target.checked;state.settings.aeroOn=state.aeroOn;store.set(K_SET,state.settings);updateAero()});
 function renderLayers(){const b=state.settings.base||"street",op=state.settings.baseOp??100;
   document.querySelectorAll("#baseSeg button").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.base===b)));
   $("#baseOp").value=op;$("#baseOpV").textContent=op+" %";$("#baseOp").disabled=b==="off"}
+function closeLayers(){if($("#layersPanel").hidden)return;$("#layersPanel").hidden=true;$("#btnLayers").setAttribute("aria-expanded","false")}
+document.addEventListener("pointerdown",e=>{if(!e.target.closest("#layersPanel,#btnLayers"))closeLayers()},true);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeLayers()});
 $("#btnLayers").addEventListener("click",()=>{const p=$("#layersPanel"),o=p.hidden;p.hidden=!o;$("#btnLayers").setAttribute("aria-expanded",String(o));renderLayers()});
 $("#baseSeg").addEventListener("click",e=>{const x=e.target.closest("[data-base]");if(!x)return;state.settings.base=x.dataset.base;store.set(K_SET,state.settings);renderLayers();if(map)map.setBase(state.settings.base,state.settings.baseOp??100)});
 $("#baseOp").addEventListener("input",e=>{state.settings.baseOp=+e.target.value;$("#baseOpV").textContent=e.target.value+" %";if(map)map.setBaseOpacity(+e.target.value)});
@@ -887,15 +906,9 @@ function limTxt(l){if(!l)return "?";const u=l.unit===6?"FL":"ft",ref=["GND","MSL
 async function checkCtrs(){const pts=state.route.pts;ctrState.list=null;ctrState.msg="";if(map)map.setCtrs(null);
   if(!pts||pts.length<2){renderRoute();return}
   if(!state.aeroKey){ctrState.msg="Kontrollzonen: openAIP-Schlüssel unter ⚙ eintragen, dann werden geschnittene CTRs markiert.";renderRoute();return}
-  const pad=.15,lats=pts.map(p=>p.lat),lons=pts.map(p=>p.lon);
-  const bbox=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad].map(v=>v.toFixed(3)).join(",");
   ctrState.msg="Kontrollzonen werden geprüft …";renderRoute();
-  try{let items=[],page=1,pages=1;
-    do{const u="https://api.core.openaip.net/api/airspaces?bbox="+bbox+"&type=4&limit=500&page="+page+"&apiKey="+encodeURIComponent(state.aeroKey);
-      const r=await fetch(u,{headers:{"Accept":"application/json"}});
-      if(!r.ok)throw new Error(r.status===401||r.status===403?"openAIP-Schlüssel abgelehnt":"openAIP antwortet mit "+r.status);
-      const j=await r.json();items=items.concat(j.items||[]);pages=j.totalPages||1;page++}while(page<=pages&&page<=5);
-    const hits=items.filter(a=>a.type===4&&a.geometry&&routeHitsGeom(pts,a.geometry)).map(a=>({name:a.name,cls:a.icaoClass!=null&&CLS[a.icaoClass]?"Klasse "+CLS[a.icaoClass]:"CTR",lim:limTxt(a.lowerLimit)+" – "+limTxt(a.upperLimit),geometry:a.geometry}));
+  try{const all=await loadCtrs();
+    const hits=(all||[]).filter(a=>routeHitsGeom(pts,a.geometry));
     if(state.route.pts!==pts)return;
     ctrState.list=hits;ctrState.msg="";if(map)map.setCtrs(hits)}
   catch(x){ctrState.msg="Kontrollzonen konnten nicht geladen werden ("+(x.message||"Netzwerk")+").";}
