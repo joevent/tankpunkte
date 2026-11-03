@@ -360,7 +360,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 15:45 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 16:00 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -522,7 +522,7 @@ const MapV={
     this.layer.clearLayers();this.mks=new Map();this.mkKey=key;
     list.forEach(s=>{const mk=L.marker([s.lat,s.lon],{zIndexOffset:s.id===sel?500:0,icon:icon(s)});mk._sel=s.id===sel;
     mk.on("click",()=>cb(s.id));mk.bindTooltip(esc(s.name),{direction:"top",offset:[0,-12]});
-    mk.bindPopup(()=>`<div class="pop"><b>${esc(s.name)}</b><div class="badges">${availBadge(s)}</div>${s.hours?`<div class="muted">${esc(s.hours)}</div>`:""}<div class="row-actions"><button class="btn small primary" data-act="addroute" data-id="${s.id}">Zur Strecke</button><button class="btn small" data-act="details" data-id="${s.id}">Details</button></div></div>`,{offset:[0,-8],closeButton:true,autoPanPadding:[20,20]});
+    mk.bindPopup(()=>stationPopup(s),{offset:[0,-8],closeButton:true,autoPanPadding:[20,20]});
     this.mks.set(s.id,mk);mk.addTo(this.layer)})},
   setUser(p){if(!p)return;if(!this.u)this.u=L.marker([p.lat,p.lon],{zIndexOffset:1000,interactive:false,icon:L.divIcon({className:"",html:'<div class="me"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(this.m);else this.u.setLatLng([p.lat,p.lon])},
   focus(lat,lon,z){this.m.setView([lat,lon],Math.max(this.m.getZoom(),z||10))},
@@ -543,7 +543,9 @@ const MapV={
     L.polyline(ll,{color:"#d3121f",weight:4,interactive:false}).addTo(g);
     for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],nm=distKm(a,b)/1.852;
       L.marker([(a.lat+b.lat)/2,(a.lon+b.lon)/2],{interactive:false,icon:L.divIcon({className:"",html:`<span class="leglbl">${crs(bearing(a,b))} · ${fmt(nm,nm<10?1:0)} NM</span>`,iconSize:[0,0]})}).addTo(g)}
-    pts.forEach((p,i)=>{if(i===pts.length-1&&p.loop)return;L.marker([p.lat,p.lon],{zIndexOffset:800,icon:L.divIcon({className:"",html:`<div class="wpm">${p.l}</div>`,iconSize:[22,22],iconAnchor:[11,11]})}).bindTooltip(esc(p.label),{direction:"top",offset:[0,-10]}).addTo(g)});
+    pts.forEach((p,i)=>{if(i===pts.length-1&&p.loop)return;const wm=L.marker([p.lat,p.lon],{zIndexOffset:800,icon:L.divIcon({className:"",html:`<div class="wpm">${p.l}</div>`,iconSize:[22,22],iconAnchor:[11,11]})}).bindTooltip(esc(p.label),{direction:"top",offset:[0,-10]});
+      wm.bindPopup(()=>wpPopup(p),{offset:[0,-6],closeButton:true,autoPanPadding:[20,20]});
+      wm.on("click",()=>{const st=wpStation(p);if(st){state.sel=st.id;render()}});wm.addTo(g)});
     this.rt=g.addTo(this.m)},
   setBase(id,op){if(this.tl){this.m.removeLayer(this.tl);this.tl=null}
     const esri=s=>({u:"https://server.arcgisonline.com/ArcGIS/rest/services/"+s+"/MapServer/tile/{z}/{y}/{x}",o:{maxZoom:19,attribution:"© Esri"}});
@@ -577,10 +579,11 @@ $("#baseOp").addEventListener("change",()=>store.set(K_SET,state.settings));
 function setPos(p,fit){state.pos=p;try{sessionStorage.setItem("tp.pos",JSON.stringify(p))}catch(e){}render(fit)}
 function locate(){
   if(!navigator.geolocation){toast("Standort nicht verfügbar – Position auf der Karte setzen.");return startPlacing()}
-  toast("Standort wird ermittelt …");
+  toast("Standort wird ermittelt …");let done=false;
+  const wd=setTimeout(()=>{if(done)return;done=true;state.geoErr=3;render();toast("Keine Antwort vom Standort – Position auf der Karte setzen.")},16000);
   navigator.geolocation.getCurrentPosition(
-    g=>{setPos({lat:g.coords.latitude,lon:g.coords.longitude,src:"GPS"},true);toast("Standort aktualisiert")},
-    err=>{toast(err.code===1?"Standortfreigabe verweigert – Position auf der Karte setzen.":"Standort nicht ermittelbar – Position auf der Karte setzen.");startPlacing()},
+    g=>{if(done&&state.geoErr!==3)return;done=true;clearTimeout(wd);state.geoErr=0;setPos({lat:g.coords.latitude,lon:g.coords.longitude,src:"GPS"},true);toast("Standort aktualisiert")},
+    err=>{if(done)return;done=true;clearTimeout(wd);state.geoErr=err.code;render();toast(err.code===1?"Standort ist für diese Seite gesperrt – Hinweis in der Seitenleiste.":"Standort nicht ermittelbar – Position auf der Karte setzen.")},
     {enableHighAccuracy:true,timeout:12000,maximumAge:30000})}
 function startPlacing(){if(!map)return;state.placing=true;$("#placingHint").hidden=false;if(state.view!=="karte")setView("karte")}
 
@@ -590,7 +593,12 @@ function withDist(list){if(!state.pos)return list.map(s=>({s})).sort((a,b)=>a.s.
   return list.map(s=>{const km=distKm(state.pos,s);return {s,km,nm:km/1.852,crs:bearing(state.pos,s)}}).sort((a,b)=>a.km-b.km)}
 const availBadge=s=>s.night?'<span class="b n">24 h</span>':'<span class="b d">nur Tag</span>';
 const badges=s=>`${availBadge(s)}${state.isSample?'<span class="b ex">Beispiel</span>':""}`;
-const routeUrl=s=>"https://www.google.com/maps/dir/?api=1&destination="+s.lat.toFixed(6)+","+s.lon.toFixed(6);
+const routeUrl=s=>"https://www.google.com/maps/search/?api=1&query="+s.lat.toFixed(6)+","+s.lon.toFixed(6);
+function stationPopup(s,extra){return `<div class="pop"><b>${esc(s.name)}</b><div class="badges">${availBadge(s)}</div>${s.hours?`<div class="muted">${esc(s.hours)}</div>`:""}${s.note?`<div>${esc(s.note)}</div>`:""}<div class="coord">${fmtCoord(s)}</div><div class="row-actions">${extra||`<button class="btn small primary" data-act="addroute" data-id="${s.id}">Zur Strecke</button>`}<button class="btn small" data-act="details" data-id="${s.id}">Details</button><a class="btn small" href="${routeUrl(s)}" target="_blank" rel="noopener">Google Maps</a></div></div>`}
+function wpStation(p){return state.stations.find(s=>s.name===p.label)||state.stations.find(s=>Math.abs(s.lat-p.lat)<1e-4&&Math.abs(s.lon-p.lon)<1e-4)}
+function wpPopup(p){const rm=`<button class="btn small danger" data-act="rmwp" data-l="${p.l}">Aus Strecke entfernen</button>`;const st=wpStation(p);
+  if(st)return stationPopup(st,rm).replace('<div class="pop">',`<div class="pop"><span class="eyebrow">Wegpunkt ${p.l}</span>`);
+  return `<div class="pop"><span class="eyebrow">Wegpunkt ${p.l}</span><b>${esc(p.label)}</b><div class="coord">${fmtCoord(p)}</div><div class="row-actions">${rm}<a class="btn small" href="${routeUrl(p)}" target="_blank" rel="noopener">Google Maps</a></div></div>`}
 const byId=id=>state.stations.find(s=>s.id===id);
 
 function render(fit){
@@ -612,7 +620,17 @@ function renderBanners(){let h="";const ed=state.settings.edit;
   $("#banners").innerHTML=h}
 function renderSide(list,top){
   const label={tag:"Tag",h24:"24 h"}[state.time];let h="";
-  if(!state.pos)h+=`<div class="next plain"><span class="eyebrow">Standort fehlt</span><div>Für Distanz und Kurs den Standort freigeben oder auf der Karte setzen.</div><div class="row-actions"><button class="btn primary small" data-act="locate">◎ Standort ermitteln</button><button class="btn small" data-act="place">Auf Karte setzen</button></div></div>`;
+  if(!state.pos&&state.geoErr===1){const ua=navigator.userAgent,ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1),mac=/Macintosh/.test(ua)&&!ios,andr=/Android/.test(ua),saf=/Safari/.test(ua)&&!/Chrome|CriOS|Edg/.test(ua),inapp=/; wv\)|FBAN|Instagram|Claude/i.test(ua);
+    const steps=[];
+    if(inapp)steps.push("Die Seite läuft in einer App-Ansicht. Öffne den Link direkt in Safari oder Chrome.");
+    if(ios){steps.push("iPhone/iPad: Einstellungen → Datenschutz & Sicherheit → Ortungsdienste → einschalten.");steps.push(saf?"Dort „Safari-Websites“ auf „Beim Verwenden der App“ stellen.":"Dort den Browser (z. B. Chrome) auf „Beim Verwenden der App“ stellen.");steps.push("In Safari: „aA“ in der Adressleiste → Website-Einstellungen → Standort: Fragen oder Erlauben.")}
+    else if(andr){steps.push("Android: Standort in den Schnelleinstellungen einschalten.");steps.push("Im Browser auf das Symbol links in der Adressleiste tippen → Berechtigungen → Standort erlauben.")}
+    else{steps.push("Im Browser auf das Symbol links in der Adressleiste (Schloss/Regler) klicken → Standort auf „Zulassen“ stellen, dann Seite neu laden.");
+      if(mac)steps.push("Mac: Systemeinstellungen → Datenschutz & Sicherheit → Ortungsdienste → einschalten und den Browser erlauben.");
+      else steps.push("Windows: Einstellungen → Datenschutz → Position → „Standortdienste“ und „Apps den Zugriff erlauben“ einschalten.")}
+    steps.push("Diensthandy: Falls die Freigabe per Geräteverwaltung gesperrt ist, hilft nur die IT. Bis dahin die Position auf der Karte antippen.");
+    h+=`<div class="next plain"><span class="eyebrow">Standort gesperrt</span><div>Der Browser hat die Standortabfrage blockiert, ohne zu fragen. Das ist eine Einstellung auf dem Gerät, nicht in der App:</div><ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:14px">${steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol><div class="row-actions"><button class="btn primary small" data-act="locate">Erneut versuchen</button><button class="btn small" data-act="place">Auf Karte setzen</button></div></div>`}
+  else if(!state.pos)h+=`<div class="next plain"><span class="eyebrow">Standort fehlt</span><div>Für Distanz und Kurs den Standort freigeben oder auf der Karte setzen.</div><div class="row-actions"><button class="btn primary small" data-act="locate">◎ Standort ermitteln</button><button class="btn small" data-act="place">Auf Karte setzen</button></div></div>`;
   if(!top)h+=`<div class="next plain"><span class="eyebrow">${label}</span><div>Kein Tankpunkt passt zum Filter.</div><div class="row-actions"><button class="btn small" data-act="all">Alle Tankpunkte zeigen</button></div></div>`;
   else{const s=top.s,nearest=top===list[0]&&state.pos;
     h+=`<article class="next"><span class="eyebrow">${nearest?"Nächster Tankpunkt · "+label:(state.sel?"Ausgewählt":label)}</span>
@@ -658,6 +676,8 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]
     case "copy":if(s)copy(fmtCoord(s)+"  ("+s.lat.toFixed(5)+", "+s.lon.toFixed(5)+")");break;
     case "edit":openEdit(s);break;
     case "exportEnc":exportEnc();break;
+    case "rmwp":{if(map&&map.m)map.m.closePopup();const i=LET.indexOf(b.dataset.l);if(i>=0&&i<state.route.wps.length){state.route.wps.splice(i,1);while(state.route.wps.length<2)state.route.wps.push("");renderWps();saveRoute();
+      if(state.route.wps.filter(x=>x.trim()).length>=2)drawRoute();else{state.route.pts=null;saveRoute();if(map){map.setRoute(null);map.setCtrs(null)}renderRoute()}toast("Wegpunkt entfernt")}}break;
     case "addroute":if(s){if(map&&map.m)map.m.closePopup();addToRoute(s)}break;
     case "details":if(s){if(map&&map.m)map.m.closePopup();state.sel=id;render();const d=$("#sideDyn");if(d&&innerWidth<920)d.scrollIntoView({behavior:"smooth",block:"start"})}break;
     case "publish":publish(b);break;
