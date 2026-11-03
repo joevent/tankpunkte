@@ -178,6 +178,10 @@ td .nm{font-weight:600}
 .ctr{display:flex;gap:8px;align-items:baseline;font-size:14px;padding:6px 9px;border-left:4px solid #b04ad6;background:var(--surface-2);border-radius:3px}
 .ctr b{font-weight:600}
 .ctr span{color:var(--muted);font-family:var(--f-mono);font-size:12px;margin-left:auto;white-space:nowrap}
+.pop{display:flex;flex-direction:column;gap:6px;min-width:180px;font:14px/1.35 var(--f-body)}
+.pop b{font-size:15px}
+.leaflet-popup-content-wrapper{border-radius:var(--r)}
+.legs thead td{border-bottom:1px solid var(--line);padding-top:0}
 .legs{width:100%;border-collapse:collapse;font-size:14px;min-width:0}
 .legs td{padding:5px 4px;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 .legs td:first-child{font-family:var(--f-body);white-space:normal}
@@ -356,7 +360,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 15:15 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 15:30 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -511,7 +515,9 @@ const MapV={
       {pane:"aero",minZoom:4,maxNativeZoom:14,maxZoom:19,opacity:.95,attribution:"Lufträume © openAIP (nicht für die Flugplanung)"}).addTo(this.m);
       this.aero.on("tileload",()=>ok=true);this.aero.on("tileerror",()=>{if(!ok&&!warned){warned=true;toast("Luftraum-Overlay lädt nicht – openAIP-Schlüssel prüfen.")}})}},
   setStations(list,sel,cb){this.layer.clearLayers();list.forEach(s=>{const mk=L.marker([s.lat,s.lon],{zIndexOffset:s.id===sel?500:0,icon:L.divIcon({className:"",html:pinHtml(s,s.id===sel),iconSize:[26,26],iconAnchor:[13,13]})});
-    mk.on("click",()=>cb(s.id));mk.bindTooltip(esc(s.name),{direction:"top",offset:[0,-12]});mk.addTo(this.layer)})},
+    mk.on("click",()=>cb(s.id));mk.bindTooltip(esc(s.name),{direction:"top",offset:[0,-12]});
+    mk.bindPopup(()=>`<div class="pop"><b>${esc(s.name)}</b><div class="badges">${availBadge(s)}</div>${s.hours?`<div class="muted">${esc(s.hours)}</div>`:""}<div class="row-actions"><button class="btn small primary" data-act="addroute" data-id="${s.id}">Zur Strecke</button><button class="btn small" data-act="details" data-id="${s.id}">Details</button></div></div>`,{offset:[0,-8],closeButton:true,autoPanPadding:[20,20]});
+    mk.addTo(this.layer)})},
   setUser(p){if(!p)return;if(!this.u)this.u=L.marker([p.lat,p.lon],{zIndexOffset:1000,interactive:false,icon:L.divIcon({className:"",html:'<div class="me"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(this.m);else this.u.setLatLng([p.lat,p.lon])},
   focus(lat,lon,z){this.m.setView([lat,lon],Math.max(this.m.getZoom(),z||10))},
   fit(pts){if(!pts.length)return;if(pts.length===1)return this.focus(pts[0][0],pts[0][1],10);this.m.fitBounds(pts,{padding:[40,40],maxZoom:11})},
@@ -612,7 +618,7 @@ function renderSide(list,top){
       ${s.phone?`<div><span class="muted">Kontakt:</span> <span class="mono" style="user-select:all">${esc(s.phone)}</span></div>`:""}
       ${s.notes?`<div class="muted">${esc(s.notes)}</div>`:""}
       <div class="coord">${fmtCoord(s)} · ${esc(s.fuel)}</div>
-      <div class="row-actions"><button class="btn small" data-act="focus" data-id="${s.id}">Auf Karte</button><a class="btn small" href="${routeUrl(s)}" target="_blank" rel="noopener">Google Maps</a><button class="btn small" data-act="copy" data-id="${s.id}">Koordinaten kopieren</button>${state.settings.edit?`<button class="btn small" data-act="edit" data-id="${s.id}">Bearbeiten</button>`:""}</div>
+      <div class="row-actions"><button class="btn small" data-act="focus" data-id="${s.id}">Auf Karte</button><a class="btn small" href="${routeUrl(s)}" target="_blank" rel="noopener">Google Maps</a><button class="btn small primary" data-act="addroute" data-id="${s.id}">Zur Strecke</button><button class="btn small" data-act="copy" data-id="${s.id}">Koordinaten kopieren</button>${state.settings.edit?`<button class="btn small" data-act="edit" data-id="${s.id}">Bearbeiten</button>`:""}</div>
     </article>`}
   if(list.length)h+=`<div><div class="eyebrow" style="margin-bottom:6px">${list.length} Tankpunkte${state.pos?" · nach Distanz":""}</div><div class="list">`+
     list.slice(0,50).map(x=>`<button class="item" data-act="select" data-id="${x.s.id}" aria-current="${top&&x.s.id===top.s.id}"><span class="nm"><i class="${x.s.night?"dot-n":"dot-d"}"></i>${esc(x.s.name)}</span><span class="dist">${x.km!=null?fmt(x.nm,x.nm<10?1:0)+" NM":""}</span><span class="sub">${esc([x.s.icao,x.s.hours].filter(Boolean).join(" · "))}</span><span class="sub dist">${x.crs!=null?crs(x.crs):""}</span></button>`).join("")+`</div></div>`;
@@ -646,6 +652,8 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]
     case "copy":if(s)copy(fmtCoord(s)+"  ("+s.lat.toFixed(5)+", "+s.lon.toFixed(5)+")");break;
     case "edit":openEdit(s);break;
     case "exportEnc":exportEnc();break;
+    case "addroute":if(s){if(map&&map.m)map.m.closePopup();addToRoute(s)}break;
+    case "details":if(s){if(map&&map.m)map.m.closePopup();state.sel=id;render();const d=$("#sideDyn");if(d&&innerWidth<920)d.scrollIntoView({behavior:"smooth",block:"start"})}break;
     case "publish":publish(b);break;
     case "takeCentral":if(state.conflict){useData(state.conflict);state.meta.base=state.meta.updated;state.meta.dirty=false;state.conflict=false;await saveLocal();render(true);toast("Zentrale Liste übernommen")}break;
     case "del":if(delArm!==id){delArm=id;b.textContent="Wirklich löschen?";setTimeout(()=>{if(delArm===id){delArm=null;renderCatalog()}},3500);break}
@@ -804,6 +812,18 @@ async function drawRoute(){const btn=$("#routeGo");btn.disabled=true;btn.textCon
   finally{btn.disabled=false;btn.textContent="Linie zeichnen";saveRoute();renderRoute()}
   checkCtrs()}
 
+/* Tankpunkt in die Strecke einfügen – an der Stelle mit dem kleinsten Umweg */
+function addToRoute(s){const w=state.route.wps.map(x=>x.trim()).filter(Boolean);
+  if(w.some(x=>x.toLowerCase()===s.name.toLowerCase())){toast("Schon in der Strecke");return}
+  if(w.length>=LET.length){toast("Maximal "+LET.length+" Punkte");return}
+  let idx=w.length;const pts=state.route.pts;
+  if(pts&&pts.length>=2){const base=pts.filter(p=>!p.loop);
+    if(base.length===w.length){const seq=state.route.loop?base.concat([base[0]]):base;let best=Infinity;
+      for(let i=1;i<seq.length;i++){const extra=distKm(seq[i-1],s)+distKm(s,seq[i])-distKm(seq[i-1],seq[i]);if(extra<best){best=extra;idx=i}}
+      if(!state.route.loop){const tail=distKm(base[base.length-1],s);if(tail<best){idx=base.length}}}}
+  w.splice(idx,0,s.name);while(w.length<2)w.push("");state.route.wps=w;renderWps();saveRoute();$("#routeBox").open=true;
+  if(w.filter(Boolean).length>=2){drawRoute();toast("Als Punkt "+LET[idx]+" eingefügt")}else toast("Als Punkt "+LET[idx]+" gesetzt – Ziel ergänzen")}
+
 /* Kontrollzonen (CTR) entlang der Linie – Daten von openAIP, Schlüssel nötig */
 const ctrState={key:"",list:null,msg:""};
 function segX(p1,p2,p3,p4){const d=(a,b,c)=>(c[0]-a[0])*(b[1]-a[1])-(c[1]-a[1])*(b[0]-a[0]);
@@ -841,8 +861,8 @@ function offRoute(s,pts){let best=Infinity,leg=0;for(let i=0;i<pts.length-1;i++)
 function renderRoute(){const pts=state.route.pts,out=$("#routeOut");if(!out)return;let h="";
   if(state.route.msg)h+=`<div class="rmsg">${esc(state.route.msg)}</div>`;
   if(pts&&pts.length>1){let tot=0;const rows=[];for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],km=distKm(a,b);tot+=km;
-      rows.push(`<tr><td>${a.l} → ${b.l}<div class="muted" style="font-size:12px">${esc(a.label)} → ${esc(b.label)}</div></td><td class="r">${crs(bearing(a,b))}</td><td class="r">${fmt(km/1.852,1)} NM</td></tr>`)}
-    h+=`<div style="overflow-x:auto"><table class="legs"><tbody>${rows.join("")}<tr class="tot"><td>Gesamt</td><td></td><td class="r">${fmt(tot/1.852,1)} NM</td></tr></tbody></table></div>`;
+      rows.push(`<tr><td>${a.l} → ${b.l}<div class="muted" style="font-size:12px">${esc(a.label)} → ${esc(b.label)}</div></td><td class="r">${crs(bearing(a,b))}</td><td class="r"><b>${fmt(km/1.852,1)}</b></td><td class="r muted">${fmt(tot/1.852,1)}</td></tr>`)}
+    h+=`<div style="overflow-x:auto"><table class="legs"><thead><tr><td class="muted" style="font-size:11px">Leg</td><td class="r muted" style="font-size:11px">Kurs rw</td><td class="r muted" style="font-size:11px">NM</td><td class="r muted" style="font-size:11px">Σ NM</td></tr></thead><tbody>${rows.join("")}<tr class="tot"><td>Gesamt</td><td></td><td class="r">${fmt(tot/1.852,1)}</td><td></td></tr></tbody></table></div>`;
     $("#routeSum").textContent=pts.map(p=>p.l).join("→")+" · "+fmt(tot/1.852,0)+" NM";
     if(ctrState.list)h+=`<div class="eyebrow">Geschnittene Kontrollzonen · ${ctrState.list.length}</div>`+(ctrState.list.length?`<div class="ctrl">${ctrState.list.map(c=>`<div class="ctr"><b>${esc(c.name)}</b><span>${esc(c.lim)}</span></div>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Die Linie schneidet keine CTR.</div>`);
     if(ctrState.msg)h+=`<div class="muted" style="font-size:13px">${esc(ctrState.msg)}</div>`;
