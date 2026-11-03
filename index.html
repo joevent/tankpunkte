@@ -91,6 +91,15 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .maptools{position:absolute;right:10px;top:10px;z-index:500;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
 .maptools .btn{box-shadow:0 1px 4px rgba(0,0,0,.18)}
 .maptools .btn[aria-pressed="true"]{background:var(--head);color:var(--head-fg);border-color:var(--head)}
+.layers{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 10px rgba(0,0,0,.2);width:min(270px,calc(100vw - 52px))}
+.lseg{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.lseg button{border:0;border-right:1px solid var(--line);background:var(--surface);padding:6px 4px;cursor:pointer;font-weight:600;font-size:13px}
+.lseg button:last-child{border-right:0}
+.lseg button[aria-pressed="true"]{background:var(--head);color:var(--head-fg)}
+.lrow{display:flex;align-items:center;gap:8px;font-size:14px}
+.lrow input[type=range]{flex:1;min-width:0;accent-color:var(--red)}
+.lrow input[type=checkbox]{accent-color:var(--red)}
+#map.nobase{background:var(--surface-2)}
 .placing-hint{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:600;background:var(--red);color:#fff;border-radius:var(--r);padding:6px 12px;font-weight:600;font-size:14px;white-space:nowrap}
 .side{overflow:auto;padding-block:14px 24px;display:flex;flex-direction:column;gap:14px;min-width:0}
 @media (min-width:920px){
@@ -257,7 +266,14 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
     <section class="view" id="view-karte">
       <div class="mapbox">
         <div id="map" aria-label="Karte"></div>
-        <div class="maptools"><button class="btn small" id="btnAero" type="button" aria-pressed="false" hidden>Lufträume</button></div>
+        <div class="maptools"><button class="btn small" id="btnLayers" type="button" aria-expanded="false" aria-controls="layersPanel">Ebenen ▾</button>
+          <div class="layers" id="layersPanel" hidden>
+            <span class="eyebrow">Grundkarte</span>
+            <div class="lseg" id="baseSeg"><button type="button" data-base="relief">Relief</button><button type="button" data-base="topo">Topo</button><button type="button" data-base="street">Straße</button><button type="button" data-base="off">Aus</button></div>
+            <label class="lrow" for="baseOp"><span>Deckkraft</span><input type="range" id="baseOp" min="15" max="100" step="5"><span class="mono" id="baseOpV"></span></label>
+            <label class="lrow"><input type="checkbox" id="aeroChk"> <span>Lufträume (openAIP)</span></label>
+            <small class="muted" id="aeroHint" hidden>Schlüssel unter ⚙ eintragen.</small>
+          </div></div>
         <div class="legend"><span><i class="dot-n"></i>24 h</span><span><i class="dot-d"></i>nur Tag</span></div>
         <div class="placing-hint" id="placingHint" hidden>Auf die Karte tippen, um die Position zu setzen</div>
       </div>
@@ -340,7 +356,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 15 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-03 · 15:15 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -443,7 +459,7 @@ $("#lockForm").addEventListener("submit",async e=>{e.preventDefault();const p=$(
   finally{$("#lockBtn").disabled=false}});
 $("#lockPass").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,4);if(lockMode==="unlock"&&e.target.value.length===4)$("#lockForm").requestSubmit()});
 $("#lockPass2").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,4)});
-function unlocked(){$("#lock").hidden=true;applyEditMode();try{render(false)}catch(e){console.error(e)}if(!map){try{startMap()}catch(e){console.error(e);toast("Karte konnte nicht starten.")}}else render(true)}
+function unlocked(){$("#lock").hidden=true;applyEditMode();try{updateAero()}catch(e){}try{render(false)}catch(e){console.error(e)}if(!map){try{startMap()}catch(e){console.error(e);toast("Karte konnte nicht starten.")}}else render(true)}
 
 /* Daten zusammenführen: zentrale Liste vs. lokale (evtl. unveröffentlichte) Änderungen */
 async function loadData(){
@@ -485,12 +501,7 @@ const pinHtml=(s,sel)=>`<div class="pin ${s.night?"n":"d"} ${sel?"sel":""}">${s.
 let map=null;
 const MapV={
   init(el){this.m=L.map(el).setView([51.2,10.4],6);
-    const ESRI={u:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",o:{maxZoom:19,attribution:"© Esri, OpenStreetMap"}};
-    const OSMT={u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",o:{maxZoom:19,attribution:"© OpenStreetMap"}};
-    const SRC=location.protocol==="file:"?[ESRI,OSMT]:[OSMT,ESRI];
-    let si=0,ok=false,errs=0;const add=()=>{if(this.tl)this.m.removeLayer(this.tl);ok=false;errs=0;this.tl=L.tileLayer(SRC[si].u,SRC[si].o).addTo(this.m);
-      this.tl.on("tileload",()=>{ok=true});this.tl.on("tileerror",()=>{if(ok)return;if(++errs>=4&&si<SRC.length-1){si++;add()}})};
-    add();
+    this.setBase(state.settings.base||"street",state.settings.baseOp??100);
     this.m.createPane("aero");this.m.getPane("aero").style.zIndex=350;this.m.getPane("aero").style.pointerEvents="none";
     this.m.on("zoomend",()=>this.updCorr&&this.updCorr());
     this.m.createPane("ctr");this.m.getPane("ctr").style.zIndex=390;
@@ -522,6 +533,16 @@ const MapV={
       L.marker([(a.lat+b.lat)/2,(a.lon+b.lon)/2],{interactive:false,icon:L.divIcon({className:"",html:`<span class="leglbl">${crs(bearing(a,b))} · ${fmt(nm,nm<10?1:0)} NM</span>`,iconSize:[0,0]})}).addTo(g)}
     pts.forEach((p,i)=>{if(i===pts.length-1&&p.loop)return;L.marker([p.lat,p.lon],{zIndexOffset:800,icon:L.divIcon({className:"",html:`<div class="wpm">${p.l}</div>`,iconSize:[22,22],iconAnchor:[11,11]})}).bindTooltip(esc(p.label),{direction:"top",offset:[0,-10]}).addTo(g)});
     this.rt=g.addTo(this.m)},
+  setBase(id,op){if(this.tl){this.m.removeLayer(this.tl);this.tl=null}
+    const esri=s=>({u:"https://server.arcgisonline.com/ArcGIS/rest/services/"+s+"/MapServer/tile/{z}/{y}/{x}",o:{maxZoom:19,attribution:"© Esri"}});
+    const B={street:location.protocol==="file:"?[esri("World_Topo_Map"),{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",o:{maxZoom:19,attribution:"© OpenStreetMap"}}]
+                    :[{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",o:{maxZoom:19,attribution:"© OpenStreetMap"}},esri("World_Topo_Map")],
+      relief:[{u:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",o:{maxNativeZoom:13,maxZoom:19,attribution:"Relief © Esri"}}],
+      topo:[{u:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",o:{subdomains:"abc",maxNativeZoom:17,maxZoom:19,attribution:"© OpenTopoMap (CC-BY-SA), OpenStreetMap"}},esri("World_Topo_Map")]}[id];
+    if(!B)return;let si=0;const add=()=>{if(this.tl)this.m.removeLayer(this.tl);let ok=false,errs=0;
+      this.tl=L.tileLayer(B[si].u,Object.assign({opacity:op/100},B[si].o)).addTo(this.m);
+      this.tl.on("tileload",()=>{ok=true});this.tl.on("tileerror",()=>{if(ok)return;if(++errs>=4&&si<B.length-1){si++;add()}})};add()},
+  setBaseOpacity(op){if(this.tl)this.tl.setOpacity(op/100)},
   setCtrs(list){if(this.ctrLayer){this.m.removeLayer(this.ctrLayer);this.ctrLayer=null}if(!list||!list.length)return;
     const g=L.layerGroup();list.forEach(a=>{L.geoJSON(a.geometry,{pane:"ctr",style:{color:"#7a1fa2",weight:2.5,fillColor:"#b04ad6",fillOpacity:.32},interactive:true})
       .bindTooltip(`<b>${esc(a.name)}</b><br>${esc(a.cls)} · ${esc(a.lim)}`,{sticky:true}).addTo(g)});this.ctrLayer=g.addTo(this.m)},
@@ -530,8 +551,15 @@ const MapV={
 function startMap(){if(!window.L){toast("Kartenbibliothek nicht geladen – Liste funktioniert trotzdem.");return}
   map=MapV;map.init($("#map"));map.onClick=(lat,lon)=>{if(!state.placing)return;state.placing=false;$("#placingHint").hidden=true;setPos({lat,lon,src:"manuell"},true)};
   updateAero();if(state.route.pts){map.setRoute(state.route.pts,state.route.corr);checkCtrs()}render(!state.route.pts);if(state.route.pts)map.fit(state.route.pts.map(p=>[p.lat,p.lon]))}
-function updateAero(){const has=!!state.aeroKey;$("#btnAero").hidden=!has;$("#btnAero").setAttribute("aria-pressed",String(has&&state.aeroOn));if(map)map.setAero(state.aeroKey,state.aeroOn)}
-$("#btnAero").addEventListener("click",()=>{state.aeroOn=!state.aeroOn;state.settings.aeroOn=state.aeroOn;store.set(K_SET,state.settings);updateAero()});
+function updateAero(){const has=!!state.aeroKey;$("#aeroChk").disabled=!has;$("#aeroChk").checked=has&&state.aeroOn;$("#aeroHint").hidden=has;if(map)map.setAero(state.aeroKey,state.aeroOn)}
+$("#aeroChk").addEventListener("change",e=>{state.aeroOn=e.target.checked;state.settings.aeroOn=state.aeroOn;store.set(K_SET,state.settings);updateAero()});
+function renderLayers(){const b=state.settings.base||"street",op=state.settings.baseOp??100;
+  document.querySelectorAll("#baseSeg button").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.base===b)));
+  $("#baseOp").value=op;$("#baseOpV").textContent=op+" %";$("#baseOp").disabled=b==="off"}
+$("#btnLayers").addEventListener("click",()=>{const p=$("#layersPanel"),o=p.hidden;p.hidden=!o;$("#btnLayers").setAttribute("aria-expanded",String(o));renderLayers()});
+$("#baseSeg").addEventListener("click",e=>{const x=e.target.closest("[data-base]");if(!x)return;state.settings.base=x.dataset.base;store.set(K_SET,state.settings);renderLayers();if(map)map.setBase(state.settings.base,state.settings.baseOp??100)});
+$("#baseOp").addEventListener("input",e=>{state.settings.baseOp=+e.target.value;$("#baseOpV").textContent=e.target.value+" %";if(map)map.setBaseOpacity(+e.target.value)});
+$("#baseOp").addEventListener("change",()=>store.set(K_SET,state.settings));
 
 /* ---------- Standort ---------- */
 function setPos(p,fit){state.pos=p;try{sessionStorage.setItem("tp.pos",JSON.stringify(p))}catch(e){}render(fit)}
