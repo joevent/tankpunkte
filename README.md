@@ -1,6 +1,6 @@
-# Tankpunkt-Finder
+# Bingo Fuel
 
-Web-App zum Finden von Tag-/Nacht-Tankpunkten. Läuft über GitHub Pages im Browser, ohne Installation.
+Web-App zum Finden von Tag- und 24-h-Tankpunkten für die Luftrettung. Läuft über GitHub Pages im Browser, ohne Installation.
 
 - `index.html` – die App
 - `stations.enc.json` – verschlüsselte Tankpunktliste (wird aus der App heraus veröffentlicht)

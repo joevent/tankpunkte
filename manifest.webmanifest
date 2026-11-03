@@ -1,6 +1,6 @@
 {
-  "name": "Tankpunkt-Finder",
-  "short_name": "Tankpunkte",
+  "name": "Bingo Fuel",
+  "short_name": "Bingo Fuel",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
