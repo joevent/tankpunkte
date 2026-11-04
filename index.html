@@ -438,7 +438,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-03 · 18:45 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-04 · 23:00 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -709,7 +709,7 @@ function aptToStation(a,ctr){const jet=a.fuel&&(a.fuel.includes(3)||a.fuel.inclu
     acc:"personal",hours:"Öffnungs- und Tankzeiten laut AIP AD 2.3/2.4 prüfen",note:(ctr?ctr.name+". ":"")+(jet?"Jet A-1 laut openAIP.":"Kraftstoff in openAIP nicht angegeben – im AIP prüfen."),notes:"Aus openAIP übernommen"})}
 async function takeCtrAirports(btn){if(!state.aeroKey){toast("Erst den openAIP-Schlüssel unter ⚙ eintragen.");return}
   btn.disabled=true;const old=btn.textContent;btn.textContent="Lade openAIP …";
-  try{const [apts,ctrs]=await Promise.all([loadApts(),loadCtrs()]);if(state.isSample){state.stations=[];state.isSample=false}
+  try{const [apts,ctrs]=await Promise.all([loadApts(),loadCtrs()]);state.isSample=false;
     let n=0;for(const a of apts){const ctr=ctrs.find(c=>routeHitsGeom([{lat:a.lat,lon:a.lon}],c.geometry));if(!ctr)continue;
       if(a.fuel&&a.fuel.length&&!a.fuel.includes(3)&&!a.fuel.includes(2))continue;
       if(state.stations.some(s=>s.icao===a.icao))continue;state.stations.push(aptToStation(a,ctr));n++}
@@ -806,7 +806,8 @@ function render(fit){
   renderSide(list,top,sun);renderCatalog();renderBanners();renderRoute();
 }
 function renderBanners(){let h="";const ed=state.settings.edit;
-  if(state.isSample)h+=`<div class="banner info wrap"><span><b>Beispieldaten.</b> Alle Einträge sind erfunden. Importiere eure Liste im Katalog.</span></div>`;
+  const nEx=state.stations.filter(s=>/^Beispiel\b/.test(s.name)).length;
+  if(nEx)h+=`<div class="banner info wrap"><span><b>Beispieldaten.</b> ${state.isSample?"Alle Einträge sind erfunden.":nEx+" Einträge sind erfundene Beispiele."}</span>${ed?`<button class="btn small" data-act="rmSamples">Beispiele entfernen</button>`:""}</div>`;
   if(state.conflict)h+=`<div class="banner alert wrap"><span><b>Neuere zentrale Liste vorhanden.</b> Deine lokalen Änderungen sind noch nicht veröffentlicht.</span><button class="btn small" data-act="takeCentral">Zentrale Liste übernehmen</button></div>`;
   else if(ed&&state.meta.dirty&&!state.isSample)h+=`<div class="banner info wrap"><span><b>Änderungen nur auf diesem Gerät.</b> ${ghReady()?"Veröffentlichen, damit die Crew sie bekommt.":`Verschlüsselt exportieren und <span class="mono">${CENTRAL}</span> auf GitHub ersetzen – oder unter ⚙ GitHub verbinden.`}</span><button class="btn small primary" data-act="${ghReady()?"publish":"exportEnc"}">${ghReady()?"Jetzt veröffentlichen":"Jetzt exportieren"}</button></div>`;
   $("#banners").innerHTML=h}
@@ -875,8 +876,10 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-act]
     case "rmwp":{if(map&&map.m)map.m.closePopup();const i=LET.indexOf(b.dataset.l);if(i>=0&&i<state.route.wps.length){state.route.wps.splice(i,1);while(state.route.wps.length<2)state.route.wps.push("");renderWps();saveRoute();
       if(state.route.wps.filter(x=>x.trim()).length>=2)drawRoute();else{state.route.pts=null;saveRoute();if(map){map.setRoute(null);map.setCtrs(null)}renderRoute()}toast("Wegpunkt entfernt")}}break;
     case "takeapt":{if(map&&map.m)map.m.closePopup();const ap=(aptAll||[]).find(a=>a.icao===b.dataset.icao);if(ap){const ctr=(ctrAll||[]).find(c=>routeHitsGeom([{lat:ap.lat,lon:ap.lon}],c.geometry));
-      if(state.isSample){state.stations=[];state.isSample=false}const st=aptToStation(ap,ctr);state.stations.push(st);markChanged();render();openEdit(st);toast("Übernommen – Zeiten und 24 h eintragen, dann speichern")}}break;
+      state.isSample=false;const st=aptToStation(ap,ctr);state.stations.push(st);markChanged();render();openEdit(st);toast("Übernommen – Zeiten und 24 h eintragen, dann speichern")}}break;
     case "addapt":{if(map&&map.m)map.m.closePopup();const ap=(aptAll||[]).find(a=>a.icao===b.dataset.icao);if(ap)addToRoute({name:ap.icao,lat:ap.lat,lon:ap.lon});}break;
+    case "rmSamples":{if(b.dataset.arm!=="1"){b.dataset.arm="1";b.textContent="Wirklich alle Beispiele löschen?";setTimeout(()=>{b.dataset.arm="";b.textContent="Beispiele entfernen"},3500);break}
+      state.stations=state.stations.filter(s=>!/^Beispiel\b/.test(s.name));state.isSample=false;markChanged();state.sel=null;render(true);toast("Beispiele entfernt")}break;
     case "copytxt":copy(b.dataset.t);break;
     case "addroute":if(s){if(map&&map.m)map.m.closePopup();addToRoute(s)}break;
     case "details":if(s){if(map&&map.m)map.m.closePopup();state.sel=id;render();const d=$("#sideTop");if(d&&innerWidth<920)d.scrollIntoView({behavior:"smooth",block:"start"})}break;
@@ -915,7 +918,7 @@ $("#formEdit").addEventListener("submit",e=>{e.preventDefault();
     day:true,night:ed.avail==="h24",hours:$("#e_hours").value,note:$("#e_note").value,phone:$("#e_phone").value,notes:$("#e_notes").value,updated:$("#e_updated").value,acc:ed.acc,bases:ed.bases});
   if(!valid(o)){toast("Name und gültige Koordinaten (z. B. 51.5181 / 7.6122) eintragen.");return}
   if(!o.acc){toast("Bitte die Zugangsart wählen.");return}
-  if(state.isSample){state.stations=[];state.isSample=false}
+  state.isSample=false;
   const i=state.stations.findIndex(x=>x.id===o.id);if(i>=0)state.stations[i]=o;else state.stations.push(o);
   markChanged();$("#dlgEdit").close();state.sel=o.id;render();toast("Gespeichert")});
 $("#e_today").addEventListener("click",()=>{$("#e_updated").value=new Date().toISOString().slice(0,10)});
@@ -1013,7 +1016,7 @@ $("#fileImport").addEventListener("change",async e=>{const file=e.target.files[0
     if(/^\s*[\[{]/.test(txt)){const j=JSON.parse(txt);if(j.format==="tankpunkte-enc")throw new Error("Verschlüsselte Datei – bitte als "+CENTRAL+" auf den Server legen.");arr=(Array.isArray(j)?j:(j.stations||[])).map(normalize).filter(valid)}
     else arr=rowsToStations(parseCSV(txt));
     if(!arr.length){toast("Keine gültigen Zeilen gefunden (Name + Koordinaten nötig).");return}
-    const base=state.isSample?[]:state.stations;const key=s=>s.name.toLowerCase()+"|"+s.lat.toFixed(3)+"|"+s.lon.toFixed(3);const seen=new Map(base.map(s=>[key(s),s]));
+    state.isSample=false;const base=state.stations;const key=s=>s.name.toLowerCase()+"|"+s.lat.toFixed(3)+"|"+s.lon.toFixed(3);const seen=new Map(base.map(s=>[key(s),s]));
     let added=0,upd=0;arr.forEach(s=>{const k=key(s);if(seen.has(k)){Object.assign(seen.get(k),s,{id:seen.get(k).id});upd++}else{base.push(s);seen.set(k,s);added++}});
     state.stations=base;markChanged();render(true);toast(added+" neu, "+upd+" aktualisiert")}
   catch(err){toast("Import fehlgeschlagen: "+err.message)}});
