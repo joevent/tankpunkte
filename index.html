@@ -175,9 +175,13 @@ td .nm{font-weight:600}
 .route[open] summary::after{content:"▴"}
 .route summary .rt{font-family:var(--f-display);font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
 .route-body{padding:0 14px 14px;display:flex;flex-direction:column;gap:10px}
-.wp{display:grid;grid-template-columns:26px minmax(0,1fr) auto auto;gap:6px;align-items:center}
-.wp-l{width:24px;height:24px;border-radius:50%;background:var(--head);color:var(--head-fg);display:grid;place-items:center;font:600 12px/1 var(--f-mono)}
-.wp input{padding:7px 9px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);min-width:0;width:100%}
+#wpList{display:flex;flex-direction:column;gap:9px}
+.wp{display:grid;grid-template-columns:28px minmax(0,1fr) 44px 44px;gap:8px;align-items:center}
+.wp .btn{height:44px;padding:0}
+.wp-l{width:26px;height:26px;border-radius:50%;background:var(--head);color:var(--head-fg);display:grid;place-items:center;font:600 12px/1 var(--f-mono)}
+.wp input{height:44px;padding:0 12px;font-size:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);min-width:0;width:100%}
+.wp input:focus{border-color:var(--red);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--red) 25%,transparent)}
+.route-body{gap:12px}
 .wp input.bad{border-color:var(--warn)}
 .chk2{display:inline-flex;gap:6px;align-items:center;font-size:14px}
 .corr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -438,7 +442,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-04 · 23:00 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-05 · 14:30 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -1065,7 +1069,10 @@ $("#wpList").addEventListener("input",e=>{const i=e.target.dataset.i;if(i==null)
 /* Beim Antippen eines Feldes den alten Inhalt markieren, damit neue Eingabe ihn ersetzt (auch auf iPhone) */
 $("#wpList").addEventListener("focusin",e=>{const t=e.target;if(t.tagName!=="INPUT"||!t.value)return;setTimeout(()=>{try{t.setSelectionRange(0,t.value.length)}catch(x){t.select()}},0)});
 $("#wpList").addEventListener("mouseup",e=>{if(e.target.tagName==="INPUT"&&e.target.selectionStart!==e.target.selectionEnd)e.preventDefault()});
-$("#wpList").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.i!=null){e.preventDefault();drawRoute()}});
+$("#wpList").addEventListener("keydown",e=>{if(e.key!=="Enter"||e.target.dataset.i==null)return;e.preventDefault();
+  const i=+e.target.dataset.i,filled=state.route.wps.filter(x=>x.trim()).length,next=$("#wp"+(i+1));
+  if(filled<2&&next){next.focus();return}            /* erst zweiten Punkt abfragen */
+  e.target.blur();drawRoute().then(()=>{if(innerWidth<920&&state.route.pts){const m=$(".mapbox");if(m)m.scrollIntoView({behavior:"smooth",block:"start"})}})});
 $("#wpList").addEventListener("click",e=>{const g=e.target.closest("[data-wpgps]"),d=e.target.closest("[data-wpdel]");
   if(g){state.route.wps[+g.dataset.wpgps]="Standort";renderWps();if(!state.pos)locate()}
   if(d&&state.route.wps.length>2){state.route.wps.splice(+d.dataset.wpdel,1);renderWps();saveRoute()}});
@@ -1088,9 +1095,13 @@ async function resolveWp(q){q=q.trim();if(!q)return null;
   if(m){const lat=parseFloat(m[1].replace(",",".")),lon=parseFloat(m[2].replace(",","."));if(Math.abs(lat)<=90&&Math.abs(lon)<=180)return {lat,lon,label:fmtCoord({lat,lon})}}
   const ql=q.toLowerCase();
   if(/^[a-z]{4}$/i.test(q)&&state.aeroKey){try{const ap=(await loadApts()||[]).find(a=>a.icao===q.toUpperCase());if(ap)return {lat:ap.lat,lon:ap.lon,label:ap.icao+" "+ap.name}}catch(x){}}
-  const st=state.stations.find(s=>s.icao&&s.icao.toLowerCase()===ql)||state.stations.find(s=>s.name.toLowerCase()===ql)||(ql.length>=4?state.stations.find(s=>s.name.toLowerCase().includes(ql)):null);
+  const st=state.stations.find(s=>s.icao&&s.icao.toLowerCase()===ql)||state.stations.find(s=>s.name.toLowerCase()===ql);
   if(st)return {lat:st.lat,lon:st.lon,label:st.name};
-  return await geocode(/^[a-z]{4}$/i.test(q)?q+" Flugplatz":q)||(/^[a-z]{4}$/i.test(q)?await geocode(q):null)}
+  let g=null;try{g=await geocode(/^[a-z]{4}$/i.test(q)?q+" Flugplatz":q)||(/^[a-z]{4}$/i.test(q)?await geocode(q):null)}catch(x){}
+  if(g)return g;
+  const part=ql.length>=4?state.stations.filter(s=>s.name.toLowerCase().includes(ql)):[];
+  if(part.length===1)return {lat:part[0].lat,lon:part[0].lon,label:part[0].name};
+  return null}
 async function drawRoute(){const btn=$("#routeGo");btn.disabled=true;btn.textContent="Suche Orte …";state.route.msg="";
   const pts=[];const bad=[];
   try{for(let i=0;i<state.route.wps.length;i++){const q=state.route.wps[i];if(!q.trim())continue;
@@ -1148,7 +1159,7 @@ function renderRoute(){const pts=state.route.pts,out=$("#routeOut");if(!out)retu
   if(state.route.msg)h+=`<div class="rmsg">${esc(state.route.msg)}</div>`;
   if(pts&&pts.length>1){let tot=0;const rows=[];for(let i=0;i<pts.length-1;i++){const a=pts[i],b=pts[i+1],km=distKm(a,b);tot+=km;
       rows.push(`<tr><td>${a.l} → ${b.l}<div class="muted" style="font-size:12px">${esc(a.label)} → ${esc(b.label)}</div></td><td class="r">${crs(bearing(a,b))}</td><td class="r"><b>${fmt(km/1.852,1)}</b></td><td class="r muted">${fmt(tot/1.852,1)}</td></tr>`)}
-    h+=`<div style="overflow-x:auto"><table class="legs"><thead><tr><td class="muted" style="font-size:11px">Leg</td><td class="r muted" style="font-size:11px">Kurs rw</td><td class="r muted" style="font-size:11px">NM</td><td class="r muted" style="font-size:11px">Σ NM</td></tr></thead><tbody>${rows.join("")}<tr class="tot"><td>Gesamt</td><td></td><td class="r">${fmt(tot/1.852,1)}</td><td></td></tr></tbody></table></div>`;
+    h+=`<div style="overflow-x:auto"><table class="legs"><thead><tr><td class="muted" style="font-size:11px">Leg</td><td class="r muted" style="font-size:11px">Kurs rw</td><td class="r muted" style="font-size:11px">NM</td><td class="r muted" style="font-size:11px">NM ges.</td></tr></thead><tbody>${rows.join("")}<tr class="tot"><td>Gesamt</td><td></td><td class="r">${fmt(tot/1.852,1)}</td><td></td></tr></tbody></table></div>`;
     $("#routeSum").textContent=pts.map(p=>p.l).join("→")+" · "+fmt(tot/1.852,0)+" NM";
     if(ctrState.list)h+=`<div class="eyebrow">Geschnittene Kontrollzonen · ${ctrState.list.length}</div>`+(ctrState.list.length?`<div class="ctrl">${ctrState.list.map(c=>`<div class="ctr"><b>${esc(c.name)}</b><span>${esc(c.lim)}</span></div>`).join("")}</div>`:`<div class="muted" style="font-size:14px">Die Linie schneidet keine CTR.</div>`);
     if(ctrState.msg)h+=`<div class="muted" style="font-size:13px">${esc(ctrState.msg)}</div>`;
