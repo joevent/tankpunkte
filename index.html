@@ -96,6 +96,8 @@ main{flex:1;display:flex;flex-direction:column;min-height:0}
 .legend{position:absolute;left:10px;bottom:10px;z-index:500;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:5px 9px;font-size:12px;display:flex;gap:10px;align-items:center}
 .legend span{display:inline-flex;align-items:center;gap:5px}
 .legend{flex-wrap:wrap;max-width:calc(100% - 20px)}
+.leaflet-control-attribution{font-size:10px!important;line-height:1.4!important;padding:1px 6px!important}
+@media (max-width:700px){.legend{bottom:22px;left:6px;font-size:11px;gap:7px;padding:4px 7px}}
 .lg-route{width:16px;height:4px;background:#d3121f;border-radius:2px;display:inline-block}
 .lg-corr{width:16px;height:9px;background:rgba(91,107,124,.3);border-top:1.5px dashed #3b4754;border-bottom:1.5px dashed #3b4754;display:inline-block}
 .lg-ctr{width:14px;height:10px;border:2px dashed #6a3fb5;background:rgba(106,63,181,.12);border-radius:2px;display:inline-block}
@@ -442,7 +444,7 @@ dialog::backdrop{background:rgba(5,8,12,.6)}
       <button class="btn small edit-only" type="button" id="s_demo">Beispieldaten laden</button>
       <button class="btn small danger" type="button" id="s_reset">Gerät zurücksetzen</button></div>
       <small>„Gerät zurücksetzen“ löscht die lokale Kopie, nicht die Liste auf dem Server.</small>
-      <small class="mono">App-Version 2026-11-05 · 14:45 Uhr</small></div>
+      <small class="mono">App-Version 2026-11-05 · 14:55 Uhr</small></div>
   </div>
   <footer><button class="btn" type="button" data-close>Schließen</button><button class="btn primary" type="submit">Übernehmen</button></footer>
 </form></dialog>
@@ -592,7 +594,7 @@ const hhmm=d=>d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
 const pinHtml=(s,sel)=>`<div class="pin ${s.night?"n":"d"} ${sel?"sel":""} ${hasAccess(s)?"":"na"}">${s.night?"24":"T"}</div>`;
 let map=null;
 const MapV={
-  init(el){this.m=L.map(el).setView([51.2,10.4],6);
+  init(el){this.m=L.map(el).setView([51.2,10.4],6);this.m.attributionControl.setPrefix(false);
     this.setBase(state.settings.base||"street",state.settings.baseOp??100);
     this.m.createPane("aero");this.m.getPane("aero").style.zIndex=350;
     this.m.createPane("border");this.m.getPane("border").style.zIndex=340;this.m.getPane("border").style.pointerEvents="none";
@@ -604,7 +606,7 @@ const MapV={
   setAero(list,on){if(this.aero){this.m.removeLayer(this.aero);this.aero=null}
     if(!on||!list||!list.length)return;
     this.aero=L.geoJSON({type:"FeatureCollection",features:list.map(a=>({type:"Feature",properties:{ref:a},geometry:a.geometry}))},
-      {pane:"aero",interactive:true,bubblingMouseEvents:true,style:{color:"#6a3fb5",weight:2,dashArray:"7 5",opacity:.9,fillColor:"#6a3fb5",fillOpacity:.06},attribution:"CTR/Flugplätze © openAIP (nicht für die Flugplanung)",
+      {pane:"aero",interactive:true,bubblingMouseEvents:true,style:{color:"#6a3fb5",weight:2,dashArray:"7 5",opacity:.9,fillColor:"#6a3fb5",fillOpacity:.06},attribution:"© openAIP – nicht für die Flugplanung",
        onEachFeature:(f,l)=>l.bindPopup(()=>ctrPopup(f.properties.ref),{autoPanPadding:[20,20]})}).addTo(this.m)},
   setBorders(geo,on){if(this.bord){this.m.removeLayer(this.bord);this.bord=null}if(!on||!geo)return;
     const base=state.settings.base||"street",dk=isDark()&&(base==="street"||base==="off"),g=L.layerGroup(),c1=dk?"#c9d2db":"#1d2329",c2=dk?"#9aa6b2":"#3a4652";
@@ -653,7 +655,7 @@ const MapV={
     const B={street:location.protocol==="file:"?[esri("World_Topo_Map"),{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",o:{maxZoom:19,attribution:"© OpenStreetMap"}}]
                     :[{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",o:{maxZoom:19,attribution:"© OpenStreetMap"}},esri("World_Topo_Map")],
       relief:[{u:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",o:{maxNativeZoom:13,maxZoom:19,attribution:"Relief © Esri"}}],
-      topo:[{u:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",o:{subdomains:"abc",maxNativeZoom:17,maxZoom:19,attribution:"© OpenTopoMap (CC-BY-SA), OpenStreetMap"}},esri("World_Topo_Map")]}[id];
+      topo:[{u:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",o:{subdomains:"abc",maxNativeZoom:17,maxZoom:19,attribution:"© OpenTopoMap, OSM"}},esri("World_Topo_Map")]}[id];
     if(!B)return;let si=0;const add=()=>{if(this.tl)this.m.removeLayer(this.tl);let ok=false,errs=0;
       this.tl=L.tileLayer(B[si].u,Object.assign({opacity:op/100},B[si].o)).addTo(this.m);
       this.tl.on("tileload",()=>{ok=true});this.tl.on("tileerror",()=>{if(ok)return;if(++errs>=4&&si<B.length-1){si++;add()}})};add()},
